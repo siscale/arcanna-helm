@@ -239,7 +239,7 @@ deploy-infra: init-namespace create-secrets deploy-elasticsearch deploy-kafka de
 	@echo "══════ infra deployed [$(ENV)] ══════"
 
 # ── Application targets ─────────────────────────────────────────────
-.PHONY: deploy-migration deploy-rest-api deploy-hypervisor deploy-exposer
+.PHONY: deploy-migration deploy-rest-api deploy-core-framework deploy-hypervisor deploy-exposer
 .PHONY: deploy-agents-exposer deploy-arcanna-rag deploy-mcp-client
 .PHONY: deploy-workers deploy-monitoring deploy-platform
 
@@ -281,6 +281,9 @@ deploy-rest-api:
 			| jq -r '.data | to_entries[] | "     \(.key): \(.value | @base64d)"' 2>/dev/null || true; \
 	fi
 
+deploy-core-framework:
+	$(call helm_upgrade,core-framework)
+
 deploy-hypervisor:
 	$(call helm_upgrade,hypervisor)
 
@@ -314,6 +317,7 @@ deploy-all: deploy-infra
 	@echo ""
 	@echo "══════ Phase 3: core services ══════"
 	$(MAKE) deploy-rest-api ENV=$(ENV)
+	$(MAKE) deploy-core-framework ENV=$(ENV)
 	$(MAKE) deploy-hypervisor ENV=$(ENV)
 	$(MAKE) deploy-exposer ENV=$(ENV)
 	$(MAKE) deploy-agents-exposer ENV=$(ENV)
@@ -389,6 +393,7 @@ help:
 	@echo ""
 	@echo "Application:"
 	@echo "  deploy-rest-api       Deploy Flask REST API"
+	@echo "  deploy-core-framework Deploy core-framework"
 	@echo "  deploy-mcp-client     Deploy MCP client"
 	@echo "  deploy-arcanna-rag    Deploy RAG pipeline"
 	@echo "  deploy-workers        Deploy workers (HPA)"
