@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: core-framework
+  labels:
+    {{- include "core-framework.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: monitoring-port-core
+      port: {{ .Values.service.port }}
+      targetPort: {{ .Values.config.port }}
+  selector:
+    {{- include "core-framework.selectorLabels" . | nindent 4 }}

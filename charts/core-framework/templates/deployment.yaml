@@ -1,0 +1,105 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: core-framework
+  labels:
+    {{- include "core-framework.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "core-framework.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "core-framework.selectorLabels" . | nindent 8 }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: 30
+      # ── Init containers ─────────────────────────────────────────
+      initContainers:
+        {{- if .Values.filebeat.enabled }}
+        - name: log-shipper-cleanup
+          image: {{ .Values.filebeat.image }}
+          securityContext:
+            runAsUser: 0
+          command: ['sh', '-c', 'rm -rf /arcanna-log/filebeat.lock']
+          volumeMounts:
+            - name: monitoring-log-volume
+              mountPath: /arcanna-log
+        {{- end }}
+      # ── Main container ──────────────────────────────────────────
+      containers:
+        - name: core-framework
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.config.port }}
+          env:
+            - name: MONITORING_PORT
+              value: {{ .Values.config.port | quote }}
+            - name: COMPONENT_TYPE
+              value: "core_framework"
+            - name: DEPLOYMENT_TYPE
+              value: "k8s-deployment"
+            - name: IMAGE_TAG
+              value: {{ .Values.image.tag | quote }}
+            - name: POD_UID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.uid
+            {{- include "core-framework.secretEnvVars" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          readinessProbe:
+            tcpSocket:
+              port: {{ .Values.config.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: {{ .Values.config.port }}
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          volumeMounts:
+            - name: monitoring-log-volume
+              mountPath: /opt/arcanna/log
+            - name: main-config
+              mountPath: /opt/arcanna/config/main/main.config
+              subPath: main.config
+        # ── Filebeat sidecar ────────────────────────────────────────
+        {{- if .Values.filebeat.enabled }}
+        - name: log-shipper
+          image: {{ .Values.filebeat.image }}
+          imagePullPolicy: Always
+          securityContext:
+            runAsUser: 0
+          resources:
+            {{- toYaml .Values.filebeat.resources | nindent 12 }}
+          volumeMounts:
+            - name: monitoring-log-volume
+              mountPath: /arcanna-log
+            - name: filebeat-config
+              mountPath: /usr/share/filebeat/filebeat.yml
+              subPath: filebeat.yml
+        {{- end }}
+      # ── Volumes ───────────────────────────────────────────────────
+      volumes:
+        - name: main-config
+          configMap:
+            name: {{ include "core-framework.fullname" . }}-config
+        - name: monitoring-log-volume
+          persistentVolumeClaim:
+            claimName: {{ include "core-framework.fullname" . }}-log-pvc
+        {{- if .Values.filebeat.enabled }}
+        - name: filebeat-config
+          configMap:
+            name: {{ .Values.filebeat.configMapName }}
+        {{- end }}

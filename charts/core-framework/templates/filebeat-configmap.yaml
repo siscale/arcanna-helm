@@ -1,0 +1,22 @@
+{{- if and .Values.filebeat.enabled .Values.filebeat.createConfigMap }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.filebeat.configMapName }}
+  labels:
+    {{- include "core-framework.labels" . | nindent 4 }}
+data:
+  filebeat.yml: |-
+    filebeat.inputs:
+    - type: log
+      paths:
+        - /arcanna-log/arcanna-*.json
+        - /arcanna-log/metrics-arcanna-*.json
+      json.keys_under_root: false
+      scan_frequency: 15s
+      tail_files: true
+    output.elasticsearch:
+      hosts: [{{ .Values.filebeat.monitoringUrl | quote }}]
+      bulk_max_size: 150
+    path.data: /arcanna-log
+{{- end }}

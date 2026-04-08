@@ -1,0 +1,5 @@
+esSecretName: aiops-staging-es-elastic-user
+
+config:
+  elasticsearch:
+    hosts: "aiops-staging-es-http"

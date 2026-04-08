@@ -1,0 +1,105 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "migration.name" . }}
+  labels:
+    {{- include "migration.labels" . | nindent 4 }}
+spec:
+  backoffLimit: {{ .Values.backoffLimit }}
+  activeDeadlineSeconds: {{ int .Values.activeDeadlineSeconds }}
+  ttlSecondsAfterFinished: {{ int .Values.ttlSecondsAfterFinished }}
+  template:
+    metadata:
+      labels:
+        {{- include "migration.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      restartPolicy: Never
+      containers:
+        - name: migration
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: MAJOR_VERSION
+              value: {{ .Values.majorVersion | quote }}
+            - name: MINOR_VERSION
+              value: {{ .Values.image.tag | quote }}
+            - name: EXTRA_ARGS
+              value: {{ .Values.extraArgs | quote }}
+            # ── Elasticsearch ──
+            - name: DATA_WAREHOUSE_USER
+              value: "elastic"
+            - name: DATA_WAREHOUSE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.esSecretName }}
+                  key: elastic
+            - name: DATA_WAREHOUSE_HOSTS
+              value: {{ .Values.config.elasticsearch.hosts | quote }}
+            - name: DATA_WAREHOUSE_PORT
+              value: {{ .Values.config.elasticsearch.port | quote }}
+            - name: DATA_WAREHOUSE_SCHEMA
+              value: {{ .Values.config.elasticsearch.schema | quote }}
+            # ── Postgres ──
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.postgresSecretName }}
+                  key: user
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.postgresSecretName }}
+                  key: password
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.postgresSecretName }}
+                  key: database
+            # ── Redis ──
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.redisSecretName }}
+                  key: password
+            # ── App secrets ──
+            - name: SEAL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.appSecretName }}
+                  key: seal-token
+            - name: CORE_SECURITY_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.appSecretName }}
+                  key: api-token
+            - name: MONITORING_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.appSecretName }}
+                  key: monitoring-api-key
+            - name: MONITORING_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.appSecretName }}
+                  key: monitoring-secret
+            - name: ARCANNA_RAG_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.appSecretName }}
+                  key: rag-api-key
+          volumeMounts:
+            - name: monitoring-log-volume
+              mountPath: /opt/arcanna/log
+            - name: main-config
+              mountPath: /opt/arcanna/config/main/main.config
+              subPath: main.config
+      volumes:
+        - name: monitoring-log-volume
+          emptyDir: {}
+        - name: main-config
+          configMap:
+            name: migration-config

@@ -1,0 +1,100 @@
+image:
+  repository: gcr.io/siscale-aiops/component-core-standalone
+  tag: latest
+  pullPolicy: Always
+
+imagePullSecrets:
+  - name: gcr-pull-secret
+
+replicaCount: 1
+
+resources:
+  requests:
+    cpu: "250m"
+    memory: "64Mi"
+  limits:
+    cpu: "2000m"
+    memory: "2048Mi"
+
+# ── Sidecar: filebeat log shipper ────────────────────────────────────
+filebeat:
+  enabled: true
+  image: docker.elastic.co/beats/filebeat:8.19.9
+  configMapName: filebeat-shipper-config
+  createConfigMap: false  # rest-api chart creates it; set true if deploying standalone
+  monitoringUrl: "http://monitoring:9802/api/v1/logs"
+  resources:
+    requests:
+      cpu: "150m"
+      memory: "64Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+
+# ── Log volume persistence ───────────────────────────────────────────
+logVolume:
+  storageClassName: ""
+  size: 512Mi
+
+# ── Secret references (all pre-existing) ─────────────────────────────
+esSecretName: aiops-staging-es-elastic-user
+redisSecretName: redis-credentials
+postgresSecretName: postgres-credentials
+appSecretName: arcanna-app-credentials
+
+# ── Service ──────────────────────────────────────────────────────────
+service:
+  port: 6000
+
+# ── Config ───────────────────────────────────────────────────────────
+config:
+  port: 6000
+
+  logging:
+    level: "debug"
+    bufferedDebug: false
+    bufferSize: 100
+    monitoring: true
+    metricsIntervalS: 10
+    logRotateMaxMb: 64
+    logRotateMaxBackup: 1
+    logRotateCheckIntervalS: 10
+
+  monitoringApiTokenLifetimeMin: 3
+
+  elasticsearch:
+    hosts: "aiops-staging-es-http"
+    port: "9200"
+    schema: "https"
+    sslValidation: false
+    requestTimeout: 90
+    readTimeout: 90
+
+  postgres:
+    host: "postgres-svc"
+    port: "5432"
+
+  kafka:
+    brokerList: "kafka:9092"
+    producerBatchSize: 1000
+
+  redis:
+    host: "redis-svc"
+    port: "6379"
+
+  hypervisor:
+    url: "http://hypervisor:8000"
+
+  agentsExposer:
+    url: "http://agents-exposer:9888"
+
+  arcannaRag:
+    url: "http://arcanna-rag:5357"
+
+  arcannaInfra:
+    url: "https://infra-api.arcanna.ai"
+
+  codeBlock:
+    memoryLimit: 50
+    timeoutLimit: 300
+    nOfWorkers: 4

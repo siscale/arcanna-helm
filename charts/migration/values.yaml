@@ -1,0 +1,76 @@
+image:
+  repository: gcr.io/siscale-aiops/component-migration
+  tag: latest
+  pullPolicy: Always
+
+imagePullSecrets:
+  - name: gcr-pull-secret
+
+# ── Phase control (set via Makefile --set) ───────────────────────────
+# "start" → --stop-jobs (runs before services)
+# "end"   → --start-jobs (runs after services)
+phase: start
+extraArgs: "--stop-jobs"
+majorVersion: "master"
+
+# Job config
+backoffLimit: 0
+ttlSecondsAfterFinished: 1209600  # 14 days
+activeDeadlineSeconds: 1200       # 20 min timeout
+
+# ── Secret references (same as core-framework) ──────────────────────
+esSecretName: aiops-staging-es-elastic-user
+redisSecretName: redis-credentials
+postgresSecretName: postgres-credentials
+appSecretName: arcanna-app-credentials
+
+# ── Config (same structure as core-framework main.config) ────────────
+config:
+  logging:
+    level: "debug"
+    bufferedDebug: false
+    bufferSize: 100
+    monitoring: true
+    metricsIntervalS: 10
+    logRotateMaxMb: 64
+    logRotateMaxBackup: 1
+    logRotateCheckIntervalS: 10
+
+  monitoringApiTokenLifetimeMin: 3
+
+  elasticsearch:
+    hosts: "aiops-staging-es-http"
+    port: "9200"
+    schema: "https"
+    sslValidation: false
+    requestTimeout: 90
+    readTimeout: 90
+
+  postgres:
+    host: "postgres-svc"
+    port: "5432"
+
+  kafka:
+    brokerList: "kafka:9092"
+    producerBatchSize: 1000
+
+  redis:
+    host: "redis-svc"
+    port: "6379"
+
+  hypervisor:
+    url: "http://hypervisor:8000"
+
+  agentsExposer:
+    url: "http://agents-exposer:9888"
+
+  arcannaRag:
+    url: "http://arcanna-rag:5357"
+
+  arcannaInfra:
+    url: "https://infra-api.arcanna.ai"
+
+  codeBlock:
+    memoryLimit: 50
+    timeoutLimit: 300
+    nOfWorkers: 4
