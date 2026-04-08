@@ -1,0 +1,16 @@
+apiVersion: platform.confluent.io/v1beta1
+kind: KRaftController
+metadata:
+  name: kraftcontroller
+  labels:
+    {{- include "arcanna-kafka.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.kraft.replicas }}
+  image:
+    application: {{ .Values.image.application }}
+    init: {{ .Values.image.init }}
+  dataVolumeCapacity: {{ .Values.kraft.dataVolumeCapacity }}
+  {{- if .Values.kraft.storageClassName }}
+  storageClass:
+    name: {{ .Values.kraft.storageClassName }}
+  {{- end }}

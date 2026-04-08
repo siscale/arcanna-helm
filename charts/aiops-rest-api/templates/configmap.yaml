@@ -1,0 +1,122 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "aiops-rest-api.fullname" . }}-config
+  labels:
+    {{- include "aiops-rest-api.labels" . | nindent 4 }}
+data:
+  main.config: |-
+    monitoring_api_key: will-be-injected
+    monitoring_secret: will-be-injected
+
+    core:
+      ip_address: 0.0.0.0
+      port: {{ .Values.config.core.port }}
+      start_healthcheck: {{ .Values.config.core.startHealthcheck }}
+      security:
+        token: will-be-injected
+        session_lifetime_seconds: {{ .Values.config.core.sessionLifetimeSeconds }}
+
+    root:
+      use_reloader: {{ .Values.config.core.useReloader }}
+      enable_scheduler: {{ .Values.config.core.enableScheduler }}
+      logger:
+        level: {{ .Values.config.logging.rootLevel }}
+
+    logger:
+      level: {{ .Values.config.logging.level }}
+      monitoring: {{ .Values.config.logging.monitoring }}
+      metrics_interval_s: {{ .Values.config.logging.metricsIntervalS }}
+      log_rotate:
+        max_mb: {{ .Values.config.logging.logRotateMaxMb }}
+        max_backup_files: {{ .Values.config.logging.logRotateMaxBackup }}
+        check_interval_s: {{ .Values.config.logging.logRotateCheckIntervalS }}
+
+    data_warehouse:
+      type: elastic
+      sniffing: {{ .Values.config.elasticsearch.sniffing }}
+      hosts:
+        - {{ .Values.config.elasticsearch.hosts }}
+      port: {{ .Values.config.elasticsearch.port }}
+      schema: {{ .Values.config.elasticsearch.schema }}
+      ssl_validation: {{ .Values.config.elasticsearch.sslValidation }}
+      ca_file:
+      user: will-be-injected
+      password: will-be-injected
+      request_timeout: {{ .Values.config.elasticsearch.requestTimeout }}
+      read_timeout: {{ .Values.config.elasticsearch.readTimeout }}
+      max_connections_allowed: {{ .Values.config.elasticsearch.maxConnections }}
+      http_compress: {{ .Values.config.elasticsearch.httpCompress }}
+
+    kafka:
+      enabled: {{ .Values.config.kafka.enabled }}
+      routing:
+        topics:
+          task_topic: {{ .Values.config.kafka.taskTopic | quote }}
+          retraining_task_topic: {{ .Values.config.kafka.retrainingTaskTopic | quote }}
+      broker_list:
+        - {{ .Values.config.kafka.brokerList }}
+
+    redis:
+      host: {{ .Values.config.redis.host }}
+      port: {{ .Values.config.redis.port }}
+      password: will-be-injected
+
+    kibana:
+      url: {{ .Values.config.kibana.url | quote }}
+      version: {{ .Values.config.kibana.version | quote }}
+
+    apm:
+      enabled: {{ .Values.config.apm.enabled }}
+      debug: {{ .Values.config.apm.debug }}
+      verify_server_cert: {{ .Values.config.apm.verifyServerCert }}
+      service:
+        name: {{ .Values.config.apm.serviceName }}
+      secret_token: will-be-injected
+      server: {{ .Values.config.apm.server | quote }}
+
+    email:
+      bypass_sending: {{ .Values.config.email.bypassSending }}
+      host: {{ .Values.config.email.host }}
+      port: {{ .Values.config.email.port }}
+      email_from: {{ .Values.config.email.from | quote }}
+
+    sso:
+      openid_connect:
+        enabled: {{ .Values.config.sso.openidConnect.enabled }}
+        realm: {{ .Values.config.sso.openidConnect.realm }}
+
+    mcp_client:
+      url: {{ .Values.config.mcpClient.url | quote }}
+
+    agents_exposer:
+      url: {{ .Values.config.agentsExposer.url | quote }}
+
+    rag:
+      url: {{ .Values.config.rag.url | quote }}
+
+    arcanna_rag:
+      url: {{ .Values.config.arcannaRag.url | quote }}
+      api_key: will-be-injected
+
+    exposer:
+      url: {{ .Values.config.exposer.url | quote }}
+
+    seal:
+      token: will-be-injected
+
+    webhook_url: will-be-injected
+
+    flask_num_workers: {{ .Values.config.flaskNumWorkers }}
+
+    resource_manager:
+      url: {{ .Values.config.hypervisor.url | quote }}
+
+    aws:
+      base_url: {{ .Values.config.aws.baseUrl | quote }}
+      products:
+        community: {{ .Values.config.aws.products.community | quote }}
+        business: {{ .Values.config.aws.products.business | quote }}
+        premium: {{ .Values.config.aws.products.premium | quote }}
+        byol: {{ .Values.config.aws.products.byol | quote }}
+        private_offer: {{ .Values.config.aws.products.privateOffer | quote }}

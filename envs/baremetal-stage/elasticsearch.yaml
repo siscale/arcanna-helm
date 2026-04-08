@@ -1,0 +1,18 @@
+clusterName: aiops-staging
+
+nodeSets:
+  - name: default
+    count: 3
+    config:
+      node.store.allow_mmap: false
+    javaOpts: "-Xms6g -Xmx6g"
+    resources:
+      requests:
+        memory: "8Gi"
+        cpu: "2"
+      limits:
+        memory: "8Gi"
+        cpu: "4"
+    storage:
+      size: 170Gi
+      storageClassName: sc-stage

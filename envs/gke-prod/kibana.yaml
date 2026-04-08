@@ -1,0 +1,11 @@
+name: aiops-prod
+elasticsearchRef: aiops-prod
+publicBaseUrl: "https://kb.arcanna.ai"
+
+resources:
+  requests:
+    memory: "2Gi"
+    cpu: "1"
+  limits:
+    memory: "4Gi"
+    cpu: "4"

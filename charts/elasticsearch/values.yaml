@@ -1,0 +1,27 @@
+# ECK Elasticsearch CR values
+# Prerequisite: ECK operator must be installed
+
+clusterName: aiops
+
+version: "8.17.0"
+
+nodeSets:
+  - name: default
+    count: 3
+    config:
+      node.store.allow_mmap: false
+    javaOpts: "-Xms6g -Xmx6g"
+    resources:
+      requests:
+        memory: "8Gi"
+        cpu: "2"
+      limits:
+        memory: "8Gi"
+        cpu: "4"
+    storage:
+      size: 170Gi
+      storageClassName: ""  # override per env
+
+# The ECK operator auto-creates a secret: {clusterName}-es-elastic-user
+# containing the elastic superuser password.
+# Other services reference this secret for ES connectivity.

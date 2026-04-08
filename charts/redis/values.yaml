@@ -1,0 +1,33 @@
+image:
+  repository: redis
+  tag: "7.4-alpine"
+  pullPolicy: IfNotPresent
+
+resources:
+  requests:
+    cpu: "100m"
+    memory: "128Mi"
+  limits:
+    cpu: "2"
+    memory: "2Gi"
+
+persistence:
+  enabled: true
+  storageClassName: ""
+  size: 5Gi
+  accessMode: ReadWriteOnce
+
+secretName: redis-credentials
+
+secret:
+  create: false
+  password: ""
+
+service:
+  port: 6379
+
+# Redis server config
+config:
+  save: "60 1"
+  loglevel: "warning"
+  maxmemoryPolicy: "allkeys-lru"

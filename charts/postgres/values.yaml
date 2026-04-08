@@ -1,0 +1,35 @@
+image:
+  repository: postgres
+  tag: "16.4"
+  pullPolicy: IfNotPresent
+
+resources:
+  requests:
+    cpu: "250m"
+    memory: "256Mi"
+  limits:
+    cpu: "2"
+    memory: "2Gi"
+
+persistence:
+  enabled: true
+  storageClassName: ""  # override per env
+  size: 20Gi
+  accessMode: ReadWriteOnce
+
+# Secret configuration
+secretName: postgres-credentials
+
+secret:
+  # Set to true to have the chart create the secret.
+  # When false, the secret must already exist in the namespace.
+  create: false
+  # Values below are only used when secret.create=true.
+  # In CI, pass via --set: helm upgrade ... --set secret.create=true --set secret.password=xxx
+  user: ""
+  password: ""
+  database: ""
+
+service:
+  type: ClusterIP
+  port: 5432

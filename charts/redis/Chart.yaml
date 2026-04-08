@@ -1,0 +1,6 @@
+apiVersion: v2
+name: arcanna-redis
+description: Redis for Arcanna platform
+type: application
+version: 0.1.0
+appVersion: "7.4"

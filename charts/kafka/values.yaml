@@ -1,0 +1,27 @@
+# CFK Kafka + KRaft CR values
+# Prerequisite: Confluent for Kubernetes operator must be installed
+
+image:
+  application: confluentinc/cp-server:8.0.0
+  init: confluentinc/confluent-init-container:2.11.2
+
+kraft:
+  replicas: 1
+  dataVolumeCapacity: 2Gi
+  storageClassName: ""  # override per env
+
+kafka:
+  replicas: 1
+  dataVolumeCapacity: 50Gi
+  storageClassName: ""  # override per env
+  jvm: "-Xmx2G -Xms2G"
+  config:
+    autoCreateTopics: true
+    defaultReplicationFactor: 1
+    minInsyncReplicas: 1
+    offsetsTopicReplicationFactor: 1
+    transactionStateLogReplicationFactor: 1
+    transactionStateLogMinIsr: 1
+    messageMaxBytes: 50000000
+    replicaFetchMaxBytes: 50000000
+    logRetentionHours: 8

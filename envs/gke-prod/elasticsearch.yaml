@@ -1,0 +1,18 @@
+clusterName: aiops-prod
+
+nodeSets:
+  - name: default
+    count: 3
+    config:
+      node.store.allow_mmap: false
+    javaOpts: "-Xms8g -Xmx8g"
+    resources:
+      requests:
+        memory: "12Gi"
+        cpu: "4"
+      limits:
+        memory: "16Gi"
+        cpu: "8"
+    storage:
+      size: 500Gi
+      storageClassName: pd-ssd

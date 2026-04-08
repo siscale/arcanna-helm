@@ -1,0 +1,6 @@
+apiVersion: v2
+name: aiops-rest-api
+description: Arcanna REST API with samples init container and filebeat sidecar
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

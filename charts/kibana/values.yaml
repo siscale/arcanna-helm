@@ -1,0 +1,21 @@
+# ECK Kibana CR values
+# Prerequisite: ECK operator must be installed
+
+name: aiops
+
+version: "8.17.0"
+
+count: 1
+
+# Must match the Elasticsearch CR name in the same namespace
+elasticsearchRef: aiops
+
+publicBaseUrl: ""  # e.g. https://stage-kb.arcanna.ai
+
+resources:
+  requests:
+    memory: "1Gi"
+    cpu: "500m"
+  limits:
+    memory: "2Gi"
+    cpu: "2"

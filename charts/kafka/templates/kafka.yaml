@@ -1,0 +1,33 @@
+apiVersion: platform.confluent.io/v1beta1
+kind: Kafka
+metadata:
+  name: kafka
+  labels:
+    {{- include "arcanna-kafka.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.kafka.replicas }}
+  image:
+    application: {{ .Values.image.application }}
+    init: {{ .Values.image.init }}
+  dataVolumeCapacity: {{ .Values.kafka.dataVolumeCapacity }}
+  {{- if .Values.kafka.storageClassName }}
+  storageClass:
+    name: {{ .Values.kafka.storageClassName }}
+  {{- end }}
+  configOverrides:
+    jvm:
+      - {{ .Values.kafka.jvm }}
+    server:
+      - auto.create.topics.enable={{ .Values.kafka.config.autoCreateTopics }}
+      - default.replication.factor={{ .Values.kafka.config.defaultReplicationFactor }}
+      - min.insync.replicas={{ .Values.kafka.config.minInsyncReplicas }}
+      - offsets.topic.replication.factor={{ .Values.kafka.config.offsetsTopicReplicationFactor }}
+      - transaction.state.log.replication.factor={{ .Values.kafka.config.transactionStateLogReplicationFactor }}
+      - transaction.state.log.min.isr={{ .Values.kafka.config.transactionStateLogMinIsr }}
+      - message.max.bytes={{ int .Values.kafka.config.messageMaxBytes }}
+      - replica.fetch.max.bytes={{ int .Values.kafka.config.replicaFetchMaxBytes }}
+      - log.retention.hours={{ .Values.kafka.config.logRetentionHours }}
+  dependencies:
+    kRaftController:
+      clusterRef:
+        name: kraftcontroller

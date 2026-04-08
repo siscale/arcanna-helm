@@ -1,0 +1,17 @@
+kraft:
+  replicas: 3
+  dataVolumeCapacity: 5Gi
+  storageClassName: pd-ssd
+
+kafka:
+  replicas: 3
+  dataVolumeCapacity: 100Gi
+  storageClassName: pd-ssd
+  jvm: "-Xmx4G -Xms4G"
+  config:
+    defaultReplicationFactor: 3
+    minInsyncReplicas: 2
+    offsetsTopicReplicationFactor: 3
+    transactionStateLogReplicationFactor: 3
+    transactionStateLogMinIsr: 2
+    logRetentionHours: 72

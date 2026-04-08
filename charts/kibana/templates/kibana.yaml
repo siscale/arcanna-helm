@@ -1,0 +1,21 @@
+apiVersion: kibana.k8s.elastic.co/v1
+kind: Kibana
+metadata:
+  name: {{ .Values.name }}
+  labels:
+    {{- include "arcanna-kibana.labels" . | nindent 4 }}
+spec:
+  version: {{ .Values.version }}
+  count: {{ .Values.count }}
+  elasticsearchRef:
+    name: {{ .Values.elasticsearchRef }}
+  {{- if .Values.publicBaseUrl }}
+  config:
+    server.publicBaseUrl: {{ .Values.publicBaseUrl | quote }}
+  {{- end }}
+  podTemplate:
+    spec:
+      containers:
+        - name: kibana
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}

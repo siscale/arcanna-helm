@@ -1,0 +1,180 @@
+image:
+  repository: gcr.io/siscale-aiops/aiops-rest-api-release
+  tag: v1.78.1
+  pullPolicy: Always
+
+imagePullSecrets:
+  - name: gcr-pull-secret
+
+replicaCount: 1
+
+resources:
+  requests:
+    cpu: "1000m"
+    memory: "1Gi"
+  limits:
+    cpu: "3000m"
+    memory: "4Gi"
+
+# ── Init container: samples-deployment ───────────────────────────────
+samples:
+  enabled: true
+  profile: "dev"
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "64Mi"
+    limits:
+      cpu: "1000m"
+      memory: "1024Mi"
+
+# ── Sidecar: filebeat log shipper ────────────────────────────────────
+filebeat:
+  enabled: true
+  image: docker.elastic.co/beats/filebeat:8.19.9
+  configMapName: filebeat-shipper-config
+  monitoringUrl: "http://monitoring:9802/api/v1/logs"
+  resources:
+    requests:
+      cpu: "150m"
+      memory: "64Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+
+# ── Secret references ────────────────────────────────────────────────
+# ECK-managed ES secret — override per env
+esSecretName: aiops-staging-es-elastic-user
+
+# Redis secret
+redisSecretName: redis-credentials
+
+# App secrets — created by the chart when secrets.create=true
+# Pass values via --set or let the Makefile generate them.
+secrets:
+  create: true
+  name: arcanna-app-credentials
+  # These get injected via --set in CI / Makefile.
+  # Keys map to secretKeyRef in the deployment.
+  sealToken: ""
+  apiToken: ""
+  ragApiKey: ""
+  monitoringApiKey: ""
+  monitoringSecret: ""
+
+# APM (optional)
+apm:
+  secretEnabled: false
+  secretName: ""
+  secretKey: secret-token
+
+# ── Service ──────────────────────────────────────────────────────────
+service:
+  type: ClusterIP
+  port: 5000
+
+  nodePort:
+    enabled: false
+    port: 30500
+
+  backendConfig:
+    enabled: false
+    timeoutSec: 300
+    healthCheckIntervalSec: 100
+    healthCheckTimeoutSec: 60
+
+# ── Config — maps 1:1 to main.config ────────────────────────────────
+# These are the DEFAULTS. Override per-env in envs/<env>/aiops-rest-api.yaml.
+# Secret fields (passwords, tokens, api keys) are NOT here — they live
+# in K8s secrets and get injected as env vars via secretKeyRef.
+config:
+  releaseVersion: "1.0.0"
+  flaskNumWorkers: 4
+
+  core:
+    port: 5000
+    startHealthcheck: true
+    sessionLifetimeSeconds: 1800
+    useReloader: false
+    enableScheduler: false
+
+  logging:
+    rootLevel: "debug"
+    level: "debug"
+    monitoring: true
+    metricsIntervalS: 10
+    logRotateMaxMb: 64
+    logRotateMaxBackup: 1
+    logRotateCheckIntervalS: 10
+
+  # Elasticsearch — host changes per env, rest is standard
+  elasticsearch:
+    hosts: "aiops-staging-es-http"
+    port: "9200"
+    schema: "https"
+    sniffing: false
+    sslValidation: false
+    requestTimeout: 10
+    readTimeout: 10
+    maxConnections: 64
+    httpCompress: true
+
+  # All below are stable K8s service names — rarely need overriding
+  kafka:
+    enabled: true
+    brokerList: "kafka:9092"
+    taskTopic: "siscale-aiops-tasks"
+    retrainingTaskTopic: "siscale-aiops-retraining-tasks"
+
+  redis:
+    host: "redis-svc"
+    port: "6379"
+
+  kibana:
+    url: ""
+    version: "8.17.0"
+
+  hypervisor:
+    url: "http://hypervisor:8000"
+
+  exposer:
+    url: "http://exposer:9666"
+
+  agentsExposer:
+    url: "http://agents-exposer:9888"
+
+  mcpClient:
+    url: "http://aiops-mcp-client-http:8001"
+
+  rag:
+    url: "http://rag:5356"
+
+  arcannaRag:
+    url: "http://arcanna-rag:5357"
+
+  apm:
+    enabled: false
+    debug: false
+    verifyServerCert: false
+    serviceName: "aiops-rest-api"
+    server: "http://localhost:8200"
+
+  email:
+    bypassSending: false
+    host: "smtp-relay-server"
+    port: 587
+    from: "Cyber A.I. Notifications<cyberainotifications@siscale.com>"
+
+  sso:
+    openidConnect:
+      enabled: true
+      realm: "aiops"
+
+  aws:
+    baseUrl: ""
+    products:
+      community: ""
+      business: ""
+      premium: ""
+      byol: ""
+      privateOffer: ""

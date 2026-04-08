@@ -1,0 +1,14 @@
+kraft:
+  replicas: 1
+  dataVolumeCapacity: 2Gi
+  storageClassName: sc-stage
+
+kafka:
+  replicas: 1
+  dataVolumeCapacity: 50Gi
+  storageClassName: sc-stage
+  jvm: "-Xmx2G -Xms2G"
+  config:
+    defaultReplicationFactor: 1
+    minInsyncReplicas: 1
+    logRetentionHours: 8

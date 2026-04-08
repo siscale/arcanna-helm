@@ -1,0 +1,6 @@
+apiVersion: v2
+name: arcanna-elasticsearch
+description: Elasticsearch cluster via ECK operator for Arcanna
+type: application
+version: 0.1.0
+appVersion: "8.17.0"

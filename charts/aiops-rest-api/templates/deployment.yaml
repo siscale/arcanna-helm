@@ -1,0 +1,163 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aiops-rest-api
+  labels:
+    {{- include "aiops-rest-api.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "aiops-rest-api.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "aiops-rest-api.selectorLabels" . | nindent 8 }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: 30
+      # ── Init containers ─────────────────────────────────────────
+      initContainers:
+        {{- if .Values.samples.enabled }}
+        - name: samples-deployment
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["python"]
+          args: ["aiops_common/samples/samples-deployment.py", "-p", {{ .Values.samples.profile | quote }}]
+          env:
+            {{- include "aiops-rest-api.esEnvVars" . | nindent 12 }}
+            {{- include "aiops-rest-api.appSecretEnvVars" . | nindent 12 }}
+            - name: ROOT_LOGGER_LEVEL
+              value: {{ .Values.config.logging.rootLevel | quote }}
+            - name: LOGGER_LEVEL
+              value: {{ .Values.config.logging.level | quote }}
+            - name: ARCANNA_RELEASE_VERSION
+              value: {{ .Values.config.releaseVersion | quote }}
+            - name: RESOURCE_MANAGER_URL
+              value: {{ .Values.config.hypervisor.url | quote }}
+          volumeMounts:
+            - name: rest-config
+              mountPath: /app/config/main.config
+              subPath: main.config
+          resources:
+            {{- toYaml .Values.samples.resources | nindent 12 }}
+        {{- end }}
+        {{- if .Values.filebeat.enabled }}
+        - name: log-shipper-cleanup
+          image: {{ .Values.filebeat.image }}
+          command: ['sh', '-c', 'rm -rf /arcanna-log/filebeat.lock']
+          volumeMounts:
+            - name: monitoring-log-volume
+              mountPath: /arcanna-log
+        {{- end }}
+      # ── Main container ──────────────────────────────────────────
+      containers:
+        - name: aiops-rest-api
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.config.core.port }}
+              protocol: TCP
+          env:
+            # ── Identity ──
+            - name: MONITORING_PORT
+              value: {{ .Values.config.core.port | quote }}
+            - name: COMPONENT_TYPE
+              value: "aiops_rest_api"
+            - name: DEPLOYMENT_TYPE
+              value: "k8s-deployment"
+            - name: IMAGE_TAG
+              value: {{ .Values.image.tag | quote }}
+            - name: ARCANNA_RELEASE_VERSION
+              value: {{ .Values.config.releaseVersion | quote }}
+            # ── Secrets from ES (ECK-managed) ──
+            {{- include "aiops-rest-api.esEnvVars" . | nindent 12 }}
+            # ── Secrets from arcanna-app-credentials ──
+            {{- include "aiops-rest-api.appSecretEnvVars" . | nindent 12 }}
+            # ── Secret from redis-credentials ──
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.redisSecretName }}
+                  key: password
+            # ── APM secret (optional) ──
+            {{- if .Values.apm.secretEnabled }}
+            - name: APM_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.apm.secretName }}
+                  key: {{ .Values.apm.secretKey }}
+            {{- end }}
+            # ── Non-secret overrides (env vars win over main.config) ──
+            - name: DATA_WAREHOUSE_SNIFFING
+              value: {{ .Values.config.elasticsearch.sniffing | quote }}
+            - name: KAFKA_BROKER_LIST
+              value: {{ .Values.config.kafka.brokerList | quote }}
+            - name: REDIS_HOST
+              value: {{ .Values.config.redis.host | quote }}
+            - name: REDIS_PORT
+              value: {{ .Values.config.redis.port | quote }}
+            - name: KIBANA_URL
+              value: {{ .Values.config.kibana.url | quote }}
+            - name: RESOURCE_MANAGER_URL
+              value: {{ .Values.config.hypervisor.url | quote }}
+            - name: ROOT_LOGGER_LEVEL
+              value: {{ .Values.config.logging.rootLevel | quote }}
+            - name: LOGGER_LEVEL
+              value: {{ .Values.config.logging.level | quote }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          readinessProbe:
+            httpGet:
+              path: /
+              port: {{ .Values.config.core.port }}
+            initialDelaySeconds: 45
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /
+              port: {{ .Values.config.core.port }}
+            initialDelaySeconds: 60
+            periodSeconds: 60
+            timeoutSeconds: 20
+          volumeMounts:
+            - name: rest-config
+              mountPath: /app/config/main.config
+              subPath: main.config
+            {{- if .Values.filebeat.enabled }}
+            - name: monitoring-log-volume
+              mountPath: /app/log
+            {{- end }}
+        {{- if .Values.filebeat.enabled }}
+        - name: log-shipper
+          image: {{ .Values.filebeat.image }}
+          imagePullPolicy: Always
+          securityContext:
+            runAsUser: 0
+          resources:
+            {{- toYaml .Values.filebeat.resources | nindent 12 }}
+          volumeMounts:
+            - name: monitoring-log-volume
+              mountPath: /arcanna-log
+            - name: filebeat-config
+              mountPath: /usr/share/filebeat/filebeat.yml
+              subPath: filebeat.yml
+        {{- end }}
+      # ── Volumes ───────────────────────────────────────────────────
+      volumes:
+        - name: rest-config
+          configMap:
+            name: {{ include "aiops-rest-api.fullname" . }}-config
+        {{- if .Values.filebeat.enabled }}
+        - name: monitoring-log-volume
+          emptyDir: {}
+        - name: filebeat-config
+          configMap:
+            name: {{ .Values.filebeat.configMapName }}
+        {{- end }}
