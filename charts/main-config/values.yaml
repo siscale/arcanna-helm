@@ -1,5 +1,161 @@
 configMapName: main-config
 
+# ── Filebeat shipper ─────────────────────────────────────────────────
+filebeat:
+  monitoringUrl: "http://monitoring:9802/api/v1/logs"
+
+# ── Service-specific configs ─────────────────────────────────────────
+serviceConfigs:
+  hypervisor: |-
+    api:
+      host: 0.0.0.0
+      port: 8000
+    monitoring:
+      enabled: true
+      cluster:
+        storage_limit_percent: 95
+      job:
+        individual_limit:
+          enabled: false
+          bytes: 50000000
+    integration_check:
+      enabled: true
+      max_cron_instance: 1
+      interval: 120
+    auto_retrain:
+      enabled: true
+      interval: 30
+    version_check:
+      enabled: true
+      interval: 240
+    license_check:
+      enabled: true
+      interval: 300
+    buckets_cleanup:
+      enabled: true
+      interval: 86400
+      time_limit: 1209600
+    logging_monitoring:
+      enabled: true
+      interval: 300
+    indices_cleanup:
+      enabled: true
+      interval: 86400
+    job_monitoring:
+      enabled: true
+      interval: 60
+      max_cron_instance: 100
+      jobs_in_invalid_state_interval_check: 300
+      cloning_state_interval_check: 10
+      soft_delete_monitoring_check: 86400
+      mapping_total_field_limit_check: 10
+      mapping_total_field_limit_delta: 100
+    batch_monitoring:
+      enabled: true
+      interval: 120
+      blocked_threshold_s: 600
+    data_aggregator:
+      decision_breakdown:
+        enabled: true
+        interval: 60
+      training_status_breakdown:
+        enabled: true
+        interval: 60
+    reporting:
+      max_cron_instance: 100
+      enabled: true
+      interval: 21600
+    inactive_jobs:
+      enabled: true
+      interval: 900
+      time_limit_m: 20
+
+  exposer: |-
+    port: 9666
+    host: 0.0.0.0
+    use_reloader: true
+    kafka_task_topic: "siscale-aiops-tasks"
+    kafka_group_suffix: "main"
+    kafka_task_group: "exposer"
+    max_events_count: 5000
+    exposer_max_batch_size: 150
+    exposer_batch_timeout: 2
+
+  agents_exposer: |-
+    port: 9888
+    host: 0.0.0.0
+    use_reloader: true
+    num_workers: 5
+    process_pool_workers: 1
+    agents_logger:
+        level: debug
+    mcp_client:
+        url: http://aiops-mcp-client-http:8001
+
+  cacher: |-
+    port: 9777
+    host: 0.0.0.0
+    use_reloader: true
+    kafka_task_topic: "siscale-aiops-tasks"
+    kafka_task_group: "cacher-group1"
+    cache_expire_seconds: 86400
+    scheduler:
+      enabled: true
+      interval_in_min: 240
+
+  feedbacker: |-
+    port: 8888
+    host: 0.0.0.0
+    use_reloader: true
+    looper_check:
+      enabled: true
+      interval_in_s: 900
+      process_cleanup_in_s: 600
+
+  monitoring_api: |-
+    host: 0.0.0.0
+    port: 9801
+    components_cleanup:
+      enabled: true
+      interval: 240
+      time_threshold: 2d
+    watchdogs:
+      enabled: true
+      interval: 60
+      max_cron_instance: 1
+    docker:
+      socket: "unix:///var/run/docker.sock"
+
+  monitoring_shipper: |-
+    host: 0.0.0.0
+    port: 9802
+    timeout: 200
+
+  llm: |-
+    api:
+        host: 0.0.0.0
+        port: 9000
+    model:
+        id: TheBloke/Mistral-7B-Instruct-v0.2-AWQ
+        settings:
+            gpu_memory_utilization: 1
+            enforce_eager: true
+            max_model_len: 4096
+            dtype: float16
+            sampling_params:
+                temperature: 0
+                top_p: 0.95
+                max_tokens: 4096
+        task:
+            summarization:
+                prompt: "<s> [INST] You are a cybersecurity expert and I need you to analyze an alert. I will give you key value pairs separated by ' --- ' representing the alert. Each key represents the name of the alert field and can be either a single phrase, or an hierarchical naming structure, separated by dots. Summarize the incidents by looking at each key value pair, giving details about them where case. Here is the alert: <<clean_record>>. Start summarizing the alert right away without any introductory words. [INST]"
+    scheduler:
+        gpu_check: 600
+
+    library:
+        name: vllm
+
+# ── Shared main.config ──────────────────────────────────────────────
 config:
   logging:
     level: "debug"

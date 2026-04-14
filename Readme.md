@@ -60,3 +60,27 @@ helm upgrade --install postgres charts/postgres \
 ```
 make deploy-rest-api ENV=baremetal-stage NAMESPACE=arcanna-stage HELM_EXTRA_ARGS='--set image.tag=584dc12c5b5b630653c28448807d1acc9309966f'
 ```
+ # 5. Deploy services form modular
+
+```
+# Config (once)
+make deploy-main-config ENV=baremetal-stage NAMESPACE=arcanna-stage
+
+# All modular services (MODULAR_TAG)
+make deploy-hypervisor ENV=baremetal-stage NAMESPACE=arcanna-stage MODULAR_TAG=fe66d88bf12918d6a2c9b86d1034df811d2dc8d8
+make deploy-exposer ENV=baremetal-stage NAMESPACE=arcanna-stage MODULAR_TAG=fe66d88bf12918d6a2c9b86d1034df811d2dc8d8
+make deploy-agents-exposer ENV=baremetal-stage NAMESPACE=arcanna-stage MODULAR_TAG=fe66d88bf12918d6a2c9b86d1034df811d2dc8d8
+make deploy-cacher ENV=baremetal-stage NAMESPACE=arcanna-stage MODULAR_TAG=fe66d88bf12918d6a2c9b86d1034df811d2dc8d8
+make deploy-clustering ENV=baremetal-stage NAMESPACE=arcanna-stage MODULAR_TAG=fe66d88bf12918d6a2c9b86d1034df811d2dc8d8
+make deploy-buckets-updater ENV=baremetal-stage NAMESPACE=arcanna-stage MODULAR_TAG=fe66d88bf12918d6a2c9b86d1034df811d2dc8d8
+make deploy-retrainer ENV=baremetal-stage NAMESPACE=arcanna-stage MODULAR_TAG=fe66d88bf12918d6a2c9b86d1034df811d2dc8d8
+make deploy-worker ENV=baremetal-stage NAMESPACE=arcanna-stage MODULAR_TAG=fe66d88bf12918d6a2c9b86d1034df811d2dc8d8
+make deploy-remote-llm ENV=baremetal-stage NAMESPACE=arcanna-stage MODULAR_TAG=fe66d88bf12918d6a2c9b86d1034df811d2dc8d8
+
+# Monitoring (uses MONITORING_TAG or TAG, not MODULAR_TAG)
+make deploy-monitoring ENV=baremetal-stage NAMESPACE=arcanna-stage TAG=fe66d88bf12918d6a2c9b86d1034df811d2dc8d8
+# end migration
+
+make deploy-migration-end ENV=baremetal-stage NAMESPACE=arcanna-stage \
+  HELM_EXTRA_ARGS='--set image.tag=8cea2247d73c89d67ecaa3d01bb3a310f8133044
+```

@@ -1,0 +1,100 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: filebeat-shipper-config2
+  labels:
+    {{- include "main-config.labels" . | nindent 4 }}
+data:
+  filebeat.yml: |-
+    filebeat.inputs:
+    - type: log
+      paths:
+        - /arcanna-log/arcanna-*.json
+        - /arcanna-log/metrics-arcanna-*.json
+      json.keys_under_root: false
+      scan_frequency: 15s
+      tail_files: true
+    output.elasticsearch:
+      hosts: [{{ .Values.filebeat.monitoringUrl | quote }}]
+      bulk_max_size: 150
+    path.data: /arcanna-log
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hypervisor-config
+  labels:
+    {{- include "main-config.labels" . | nindent 4 }}
+data:
+  hypervisor.config: |-
+    {{- .Values.serviceConfigs.hypervisor | nindent 4 }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: exposer-config
+  labels:
+    {{- include "main-config.labels" . | nindent 4 }}
+data:
+  exposer.config: |-
+    {{- .Values.serviceConfigs.exposer | nindent 4 }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: agents-exposer-config
+  labels:
+    {{- include "main-config.labels" . | nindent 4 }}
+data:
+  agents_exposer.config: |-
+    {{- .Values.serviceConfigs.agents_exposer | nindent 4 }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cacher-config
+  labels:
+    {{- include "main-config.labels" . | nindent 4 }}
+data:
+  cacher.config: |-
+    {{- .Values.serviceConfigs.cacher | nindent 4 }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: feedbacker-config
+  labels:
+    {{- include "main-config.labels" . | nindent 4 }}
+data:
+  feedbacker.config: |-
+    {{- .Values.serviceConfigs.feedbacker | nindent 4 }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: monitoring-api-config
+  labels:
+    {{- include "main-config.labels" . | nindent 4 }}
+data:
+  monitoring_api.config: |-
+    {{- .Values.serviceConfigs.monitoring_api | nindent 4 }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: monitoring-shipper-config
+  labels:
+    {{- include "main-config.labels" . | nindent 4 }}
+data:
+  monitoring_shipper.config: |-
+    {{- .Values.serviceConfigs.monitoring_shipper | nindent 4 }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: llm-config
+  labels:
+    {{- include "main-config.labels" . | nindent 4 }}
+data:
+  llm.config: |-
+    {{- .Values.serviceConfigs.llm | nindent 4 }}

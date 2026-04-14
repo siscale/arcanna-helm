@@ -28,6 +28,15 @@ SKIP_ES    ?= false
 SKIP_KAFKA ?= false
 SKIP_KB    ?= false
 
+# ── Image tags ──────────────────────────────────────────────────────
+# TAG sets the default for all app services. Override per-service if needed.
+TAG                    ?= latest
+REST_API_TAG           ?= $(TAG)
+CORE_FRAMEWORK_TAG     ?= $(TAG)
+MIGRATION_TAG          ?= $(TAG)
+MODULAR_TAG            ?= $(TAG)
+MONITORING_TAG         ?= $(TAG)
+
 # ── Helpers ──────────────────────────────────────────────────────────
 define helm_upgrade
 	@echo "──── deploying $(1) [$(ENV)] ────"
@@ -35,6 +44,19 @@ define helm_upgrade
 		-n $(NAMESPACE) \
 		-f $(CHARTS_DIR)/$(1)/values.yaml \
 		$(if $(wildcard $(ENVS_DIR)/$(1).yaml),-f $(ENVS_DIR)/$(1).yaml) \
+		--timeout $(HELM_TIMEOUT) \
+		--wait \
+		$(HELM_EXTRA_ARGS)
+endef
+
+# Deploy modular-service chart with per-service values file
+define helm_modular
+	@echo "──── deploying $(1) [$(ENV)] (modular-service) ────"
+	helm upgrade --install $(1) $(CHARTS_DIR)/modular-service \
+		-n $(NAMESPACE) \
+		-f $(CHARTS_DIR)/modular-service/values.yaml \
+		-f $(ENVS_DIR)/services/$(1).yaml \
+		--set image.tag=$(2) \
 		--timeout $(HELM_TIMEOUT) \
 		--wait \
 		$(HELM_EXTRA_ARGS)
@@ -301,26 +323,57 @@ deploy-rest-api:
 deploy-core-framework:
 	$(call helm_upgrade,core-framework)
 
+# ── Modular-service deployments (one chart, per-service values) ──────
+.PHONY: deploy-hypervisor deploy-exposer deploy-agents-exposer
+.PHONY: deploy-cacher deploy-clustering deploy-buckets-updater deploy-retrainer
+.PHONY: deploy-worker deploy-feedbacker deploy-remote-llm deploy-monitoring
+
 deploy-hypervisor:
-	$(call helm_upgrade,hypervisor)
+	$(call helm_modular,hypervisor,$(MODULAR_TAG))
 
 deploy-exposer:
-	$(call helm_upgrade,exposer)
+	$(call helm_modular,exposer,$(MODULAR_TAG))
 
 deploy-agents-exposer:
-	$(call helm_upgrade,agents-exposer)
+	$(call helm_modular,agents-exposer,$(MODULAR_TAG))
+
+deploy-cacher:
+	$(call helm_modular,cacher,$(MODULAR_TAG))
+
+deploy-clustering:
+	$(call helm_modular,clustering,$(MODULAR_TAG))
+
+deploy-buckets-updater:
+	$(call helm_modular,buckets-updater,$(MODULAR_TAG))
+
+deploy-retrainer:
+	$(call helm_modular,retrainer,$(MODULAR_TAG))
+
+deploy-worker:
+	$(call helm_modular,worker,$(MODULAR_TAG))
+
+deploy-feedbacker:
+	$(call helm_modular,feedbacker,$(MODULAR_TAG))
+
+deploy-remote-llm:
+	$(call helm_modular,remote-llm,$(MODULAR_TAG))
+
+deploy-monitoring:
+	@echo "──── deploying monitoring [$(ENV)] ────"
+	helm upgrade --install monitoring $(CHARTS_DIR)/monitoring \
+		-n $(NAMESPACE) \
+		-f $(CHARTS_DIR)/monitoring/values.yaml \
+		$(if $(wildcard $(ENVS_DIR)/services/monitoring.yaml),-f $(ENVS_DIR)/services/monitoring.yaml) \
+		--set image.tag=$(MONITORING_TAG) \
+		--timeout $(HELM_TIMEOUT) \
+		--wait \
+		$(HELM_EXTRA_ARGS)
 
 deploy-arcanna-rag:
 	$(call helm_upgrade,arcanna-rag)
 
 deploy-mcp-client:
 	$(call helm_upgrade,mcp-client)
-
-deploy-workers:
-	$(call helm_upgrade,workers)
-
-deploy-monitoring:
-	$(call helm_upgrade,monitoring)
 
 deploy-platform:
 	$(call helm_upgrade,aiops-platform)
@@ -336,28 +389,58 @@ deploy-all: deploy-infra
 	$(MAKE) deploy-main-config ENV=$(ENV)
 	@echo ""
 	@echo "══════ Phase 3: migration start (stop jobs) ══════"
-	$(MAKE) deploy-migration-start ENV=$(ENV)
+	$(MAKE) deploy-migration-start ENV=$(ENV) HELM_EXTRA_ARGS='--set image.tag=$(MIGRATION_TAG)'
 	@echo ""
 	@echo "══════ Phase 4: core services ══════"
-	$(MAKE) deploy-rest-api ENV=$(ENV)
-	$(MAKE) deploy-core-framework ENV=$(ENV)
+	$(MAKE) deploy-rest-api ENV=$(ENV) HELM_EXTRA_ARGS='--set image.tag=$(REST_API_TAG)'
+	$(MAKE) deploy-core-framework ENV=$(ENV) HELM_EXTRA_ARGS='--set image.tag=$(CORE_FRAMEWORK_TAG)'
 	$(MAKE) deploy-hypervisor ENV=$(ENV)
 	$(MAKE) deploy-exposer ENV=$(ENV)
 	$(MAKE) deploy-agents-exposer ENV=$(ENV)
-	$(MAKE) deploy-arcanna-rag ENV=$(ENV)
-	$(MAKE) deploy-mcp-client ENV=$(ENV)
+	$(MAKE) deploy-feedbacker ENV=$(ENV)
+	$(MAKE) deploy-remote-llm ENV=$(ENV)
 	@echo ""
-	@echo "══════ Phase 5: workers + monitoring ══════"
-	$(MAKE) deploy-workers ENV=$(ENV)
+	@echo "══════ Phase 5: workers + processing ══════"
+	$(MAKE) deploy-worker ENV=$(ENV)
+	$(MAKE) deploy-buckets-updater ENV=$(ENV)
+	$(MAKE) deploy-retrainer ENV=$(ENV)
+	$(MAKE) deploy-clustering ENV=$(ENV)
+	$(MAKE) deploy-cacher ENV=$(ENV)
+	@echo ""
+	@echo "══════ Phase 6: monitoring ══════"
 	$(MAKE) deploy-monitoring ENV=$(ENV)
 	@echo ""
-	@echo "══════ Phase 6: migration end (start jobs) ══════"
-	$(MAKE) deploy-migration-end ENV=$(ENV)
+	@echo "══════ Phase 7: migration end (start jobs) ══════"
+	$(MAKE) deploy-migration-end ENV=$(ENV) HELM_EXTRA_ARGS='--set image.tag=$(MIGRATION_TAG)'
 	@echo ""
-	@echo "══════ Phase 7: frontend ══════"
+	@echo "══════ Phase 8: frontend ══════"
 	$(MAKE) deploy-platform ENV=$(ENV)
 	@echo ""
 	@echo "✅ Full deploy complete [$(ENV)]"
+
+# ── Upgrade shortcut (app services only, no infra) ──────────────────
+.PHONY: upgrade-all
+upgrade-all:
+	@echo "══════ Upgrading app services [$(ENV)] TAG=$(TAG) ══════"
+	@echo ""
+	$(MAKE) deploy-main-config ENV=$(ENV)
+	$(MAKE) deploy-migration-start ENV=$(ENV) HELM_EXTRA_ARGS='--set image.tag=$(MIGRATION_TAG)'
+	$(MAKE) deploy-rest-api ENV=$(ENV) HELM_EXTRA_ARGS='--set image.tag=$(REST_API_TAG)'
+	$(MAKE) deploy-core-framework ENV=$(ENV) HELM_EXTRA_ARGS='--set image.tag=$(CORE_FRAMEWORK_TAG)'
+	$(MAKE) deploy-hypervisor ENV=$(ENV)
+	$(MAKE) deploy-exposer ENV=$(ENV)
+	$(MAKE) deploy-agents-exposer ENV=$(ENV)
+	$(MAKE) deploy-feedbacker ENV=$(ENV)
+	$(MAKE) deploy-remote-llm ENV=$(ENV)
+	$(MAKE) deploy-worker ENV=$(ENV)
+	$(MAKE) deploy-buckets-updater ENV=$(ENV)
+	$(MAKE) deploy-retrainer ENV=$(ENV)
+	$(MAKE) deploy-clustering ENV=$(ENV)
+	$(MAKE) deploy-cacher ENV=$(ENV)
+	$(MAKE) deploy-monitoring ENV=$(ENV)
+	$(MAKE) deploy-migration-end ENV=$(ENV) HELM_EXTRA_ARGS='--set image.tag=$(MIGRATION_TAG)'
+	@echo ""
+	@echo "✅ Upgrade complete [$(ENV)] TAG=$(TAG)"
 
 # ── Rollback ────────────────────────────────────────────────────────
 .PHONY: rollback-%
@@ -428,20 +511,29 @@ help:
 	@echo "  deploy-migration-end   Run ES migration (--start-jobs)"
 	@echo ""
 	@echo "Lifecycle:"
-	@echo "  deploy-all            Full ordered deploy (secrets → infra → app)"
-	@echo "  rollback-<name>       Rollback a Helm release"
+	@echo "  deploy-all            Full ordered deploy (secrets + infra + app)"
+	@echo "  upgrade-all           App services only (no infra, no secrets)"
+	@echo "  rollback-<n>       Rollback a Helm release"
 	@echo "  status                Show releases, pods, PVCs"
 	@echo "  destroy-infra         Remove infra releases (keeps PVCs/secrets)"
 	@echo ""
-	@echo "Quick start (fresh cluster):"
+	@echo "Image tags:"
+	@echo "  TAG=<sha>               Default tag for all services"
+	@echo "  REST_API_TAG=<sha>      Override rest-api only"
+	@echo "  CORE_FRAMEWORK_TAG=<sha>"
+	@echo "  MIGRATION_TAG=<sha>"
+	@echo ""
+	@echo "Examples:"
+	@echo "  # Fresh cluster"
 	@echo "  export POSTGRES_USER=arcanna POSTGRES_PASSWORD=s3cret POSTGRES_DB=arcanna"
-	@echo "  export REDIS_PASSWORD=r3dis"
-	@echo "  export GCR_JSON_KEY_FILE=~/sa-key.json"
-	@echo "  make deploy-all ENV=baremetal-stage NAMESPACE=arcanna-stage"
+	@echo "  export REDIS_PASSWORD=r3dis GCR_JSON_KEY_FILE=~/sa-key.json"
+	@echo "  make deploy-all ENV=baremetal-stage NAMESPACE=arcanna-stage TAG=abc123"
 	@echo ""
-	@echo "Existing cluster (adopt pre-Helm resources first):"
-	@echo "  make adopt-existing ENV=baremetal-stage NAMESPACE=arcanna-stage"
-	@echo "  make deploy-infra ENV=baremetal-stage NAMESPACE=arcanna-stage"
+	@echo "  # Upgrade all services (same tag)"
+	@echo "  make upgrade-all ENV=baremetal-stage NAMESPACE=arcanna-stage TAG=def456"
 	@echo ""
-	@echo "Skip pre-existing infra:"
-	@echo "  make deploy-infra ENV=baremetal-stage NAMESPACE=arcanna-stage SKIP_ES=true SKIP_KAFKA=true SKIP_KB=true"
+	@echo "  # Upgrade with per-service tags"
+	@echo "  make upgrade-all ENV=baremetal-stage NAMESPACE=arcanna-stage REST_API_TAG=v1.79.0 CORE_FRAMEWORK_TAG=abc123"
+	@echo ""
+	@echo "  # Single service"
+	@echo "  make deploy-rest-api ENV=baremetal-stage NAMESPACE=arcanna-stage HELM_EXTRA_ARGS='--set image.tag=v1.79.0'"
