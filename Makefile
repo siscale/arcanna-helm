@@ -239,15 +239,32 @@ deploy-infra: init-namespace create-secrets deploy-elasticsearch deploy-kafka de
 	@echo "══════ infra deployed [$(ENV)] ══════"
 
 # ── Application targets ─────────────────────────────────────────────
-.PHONY: deploy-migration deploy-rest-api deploy-core-framework deploy-hypervisor deploy-exposer
+.PHONY: deploy-migration-start deploy-migration-end deploy-rest-api deploy-core-framework deploy-hypervisor deploy-exposer
 .PHONY: deploy-agents-exposer deploy-arcanna-rag deploy-mcp-client
 .PHONY: deploy-workers deploy-monitoring deploy-platform
 
-deploy-migration:
-	$(call helm_upgrade,migration)
-	@echo "  ⏳ waiting for migration job..."
-	kubectl wait --for=condition=complete job -l app.kubernetes.io/name=arcanna-migration \
-		-n $(NAMESPACE) --timeout=600s 2>/dev/null || true
+# Migration helper — Jobs are immutable, so uninstall old release before installing new
+define helm_migration
+	@echo "──── migration $(1) [$(ENV)] ────"
+	-helm uninstall migration-$(1) -n $(NAMESPACE) 2>/dev/null
+	@sleep 2
+	helm install migration-$(1) $(CHARTS_DIR)/migration \
+		-n $(NAMESPACE) \
+		-f $(CHARTS_DIR)/migration/values.yaml \
+		$(if $(wildcard $(ENVS_DIR)/migration.yaml),-f $(ENVS_DIR)/migration.yaml) \
+		--set phase=$(1) \
+		--set extraArgs=$(2) \
+		$(HELM_EXTRA_ARGS)
+	@echo "  ⏳ waiting for migration-$(1)..."
+	kubectl wait --for=condition=complete job/migration-$(1) \
+		-n $(NAMESPACE) --timeout=1200s
+endef
+
+deploy-migration-start:
+	$(call helm_migration,start,--stop-jobs)
+
+deploy-migration-end:
+	$(call helm_migration,end,--start-jobs)
 
 deploy-rest-api:
 	@if kubectl get secret arcanna-app-credentials -n $(NAMESPACE) >/dev/null 2>&1; then \
@@ -308,14 +325,20 @@ deploy-monitoring:
 deploy-platform:
 	$(call helm_upgrade,aiops-platform)
 
+deploy-main-config:
+	$(call helm_upgrade,main-config)
+
 # ── Full deploy (secrets → infra → app, ordered) ────────────────────
 .PHONY: deploy-all
 deploy-all: deploy-infra
 	@echo ""
-	@echo "══════ Phase 2: migration ══════"
-	$(MAKE) deploy-migration ENV=$(ENV)
+	@echo "══════ Phase 2: shared config ══════"
+	$(MAKE) deploy-main-config ENV=$(ENV)
 	@echo ""
-	@echo "══════ Phase 3: core services ══════"
+	@echo "══════ Phase 3: migration start (stop jobs) ══════"
+	$(MAKE) deploy-migration-start ENV=$(ENV)
+	@echo ""
+	@echo "══════ Phase 4: core services ══════"
 	$(MAKE) deploy-rest-api ENV=$(ENV)
 	$(MAKE) deploy-core-framework ENV=$(ENV)
 	$(MAKE) deploy-hypervisor ENV=$(ENV)
@@ -324,11 +347,14 @@ deploy-all: deploy-infra
 	$(MAKE) deploy-arcanna-rag ENV=$(ENV)
 	$(MAKE) deploy-mcp-client ENV=$(ENV)
 	@echo ""
-	@echo "══════ Phase 4: workers + monitoring ══════"
+	@echo "══════ Phase 5: workers + monitoring ══════"
 	$(MAKE) deploy-workers ENV=$(ENV)
 	$(MAKE) deploy-monitoring ENV=$(ENV)
 	@echo ""
-	@echo "══════ Phase 5: frontend ══════"
+	@echo "══════ Phase 6: migration end (start jobs) ══════"
+	$(MAKE) deploy-migration-end ENV=$(ENV)
+	@echo ""
+	@echo "══════ Phase 7: frontend ══════"
 	$(MAKE) deploy-platform ENV=$(ENV)
 	@echo ""
 	@echo "✅ Full deploy complete [$(ENV)]"
@@ -398,7 +424,8 @@ help:
 	@echo "  deploy-arcanna-rag    Deploy RAG pipeline"
 	@echo "  deploy-workers        Deploy workers (HPA)"
 	@echo "  deploy-platform       Deploy React frontend"
-	@echo "  deploy-migration      Run ES + Postgres migrations"
+	@echo "  deploy-migration-start Run ES migration (--stop-jobs)"
+	@echo "  deploy-migration-end   Run ES migration (--start-jobs)"
 	@echo ""
 	@echo "Lifecycle:"
 	@echo "  deploy-all            Full ordered deploy (secrets → infra → app)"

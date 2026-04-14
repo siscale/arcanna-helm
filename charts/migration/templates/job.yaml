@@ -29,6 +29,8 @@ spec:
               value: {{ .Values.image.tag | quote }}
             - name: EXTRA_ARGS
               value: {{ .Values.extraArgs | quote }}
+            - name: LOGGER_LEVEL
+              value: debug
             # ── Elasticsearch ──
             - name: DATA_WAREHOUSE_USER
               value: "elastic"
@@ -102,4 +104,4 @@ spec:
           emptyDir: {}
         - name: main-config
           configMap:
-            name: migration-config
+            name: main-config

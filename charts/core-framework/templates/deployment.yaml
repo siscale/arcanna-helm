@@ -15,8 +15,7 @@ spec:
     metadata:
       labels:
         {{- include "core-framework.selectorLabels" . | nindent 8 }}
-      annotations:
-        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+      annotations: {}
     spec:
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
@@ -94,7 +93,7 @@ spec:
       volumes:
         - name: main-config
           configMap:
-            name: {{ include "core-framework.fullname" . }}-config
+            name: main-config
         - name: monitoring-log-volume
           persistentVolumeClaim:
             claimName: {{ include "core-framework.fullname" . }}-log-pvc

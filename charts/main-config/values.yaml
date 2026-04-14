@@ -1,0 +1,53 @@
+configMapName: main-config
+
+config:
+  logging:
+    level: "debug"
+    bufferedDebug: false
+    bufferSize: 100
+    monitoring: true
+    metricsIntervalS: 10
+    logRotateMaxMb: 64
+    logRotateMaxBackup: 1
+    logRotateCheckIntervalS: 10
+
+  monitoringApiTokenLifetimeMin: 3
+
+  elasticsearch:
+    hosts: "aiops-staging-es-http"
+    port: "9200"
+    schema: "https"
+    sslValidation: false
+    requestTimeout: 90
+    readTimeout: 90
+
+  postgres:
+    host: "postgres-svc"
+    port: "5432"
+    user: "arcanna"
+    database: "arcanna"
+
+  kafka:
+    brokerList: "kafka:9092"
+    producerBatchSize: 1000
+
+  redis:
+    host: "redis-svc"
+    port: "6379"
+
+  hypervisor:
+    url: "http://hypervisor:8000"
+
+  agentsExposer:
+    url: "http://agents-exposer:9888"
+
+  arcannaRag:
+    url: "http://arcanna-rag:5357"
+
+  arcannaInfra:
+    url: "https://infra-api.arcanna.ai"
+
+  codeBlock:
+    memoryLimit: 50
+    timeoutLimit: 300
+    nOfWorkers: 4
