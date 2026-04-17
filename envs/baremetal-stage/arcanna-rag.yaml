@@ -1,0 +1,20 @@
+esSecretName: aiops-staging-es-elastic-user
+
+elasticsearch:
+  hosts: "aiops-staging-es-http"
+
+storagePvc:
+  storageClassName: sc-stage
+
+logPvc:
+  storageClassName: sc-stage
+
+# FOR GPU
+#gpu:
+#  enabled: true
+#  nodeSelector:
+#    gpu: "true"
+#  tolerations:
+#    - key: nvidia.com/gpu
+#      operator: Exists
+#      effect: NoSchedule

@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: arcanna-rag-storage
+  labels:
+    {{- include "arcanna-rag.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.storagePvc.size }}
+  {{- if .Values.storagePvc.storageClassName }}
+  storageClassName: {{ .Values.storagePvc.storageClassName }}
+  {{- end }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: arcanna-rag-log-pvc
+  labels:
+    {{- include "arcanna-rag.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.logPvc.size }}
+  {{- if .Values.logPvc.storageClassName }}
+  storageClassName: {{ .Values.logPvc.storageClassName }}
+  {{- end }}

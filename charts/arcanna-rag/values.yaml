@@ -1,0 +1,105 @@
+image:
+  repository: gcr.io/siscale-aiops/arcanna-rag
+  tag: latest
+  pullPolicy: Always
+
+imagePullSecrets:
+  - name: gcr-pull-secret
+
+port: 5357
+
+resources:
+  requests:
+    cpu: "2000m"
+    memory: "4Gi"
+  limits:
+    cpu: "4000m"
+    memory: "10Gi"
+
+# ── Storage ──────────────────────────────────────────────────────────
+storagePvc:
+  size: 20Gi
+  storageClassName: ""
+
+logPvc:
+  size: 4Gi
+  storageClassName: ""
+
+# ── Filebeat sidecar ────────────────────────────────────────────────
+filebeat:
+  enabled: true
+  image: docker.elastic.co/beats/filebeat:8.19.9
+  configMapName: filebeat-shipper-config
+  resources:
+    requests:
+      cpu: "150m"
+      memory: "64Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+
+# ── GPU scheduling (optional) ───────────────────────────────────────
+gpu:
+  enabled: false
+  # nodeSelector:
+  #   gpu: "true"
+  # tolerations:
+  #   - key: nvidia.com/gpu
+  #     operator: Exists
+  #     effect: NoSchedule
+  # resources:
+  #   limits:
+  #     nvidia.com/gpu: 1
+  nodeSelector: {}
+  tolerations: []
+
+# ── Only per-env value ──────────────────────────────────────────────
+esSecretName: aiops-staging-es-elastic-user
+
+elasticsearch:
+  hosts: "aiops-staging-es-http"
+  port: "9200"
+  schema: "https"
+
+# ── RAG config (arcanna_rag.config) ─────────────────────────────────
+config:
+  logging:
+    level: "debug"
+    bufferedDebug: false
+    bufferSize: 100
+    monitoring: true
+    metricsIntervalS: 10
+
+  rag:
+    uvicornWorkers: 1
+    storage:
+      root: "data/storage"
+      maxFileSizeBytes: 419430400
+      maxTotalUploadBytes: 2147483648
+    orchestrator:
+      stuckRecoveryIntervalS: 600
+      conversion:
+        numWorkers: 1
+        stuckTimeoutMinutes: 15
+      rag:
+        numWorkers: 1
+        stuckTimeoutMinutes: 15
+    embedding:
+      model: "BAAI/bge-m3"
+      maxTokens: 1024
+      batchSize: 32
+      dims: 1024
+    reranker:
+      model: "BAAI/bge-reranker-v2-m3"
+      minScore: 0.1
+    docling:
+      doOcr: true
+      doTableStructure: true
+      forceFullPageOcr: false
+      doCellMatching: true
+      tableFormerMode: "accurate"
+      doCodeEnrichment: false
+      doFormulaEnrichment: false
+      conversionTimeout: 600
+      ocrLang: "['en', 'ro']"
+      ocrEngine: "easyocr"

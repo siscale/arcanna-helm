@@ -370,7 +370,15 @@ deploy-monitoring:
 		$(HELM_EXTRA_ARGS)
 
 deploy-arcanna-rag:
-	$(call helm_upgrade,arcanna-rag)
+	@echo "──── deploying arcanna-rag [$(ENV)] (manual — not in deploy-all) ────"
+	helm upgrade --install arcanna-rag $(CHARTS_DIR)/arcanna-rag \
+		-n $(NAMESPACE) \
+		-f $(CHARTS_DIR)/arcanna-rag/values.yaml \
+		$(if $(wildcard $(ENVS_DIR)/arcanna-rag.yaml),-f $(ENVS_DIR)/arcanna-rag.yaml) \
+		--set image.tag=$(TAG) \
+		--timeout $(HELM_TIMEOUT) \
+		--wait \
+		$(HELM_EXTRA_ARGS)
 
 deploy-mcp-client:
 	@echo "──── deploying aiops-mcp-client [$(ENV)] ────"

@@ -84,3 +84,29 @@ make deploy-monitoring ENV=baremetal-stage NAMESPACE=arcanna-stage TAG=fe66d88bf
 make deploy-migration-end ENV=baremetal-stage NAMESPACE=arcanna-stage \
   HELM_EXTRA_ARGS='--set image.tag=8cea2247d73c89d67ecaa3d01bb3a310f8133044
 ```
+
+# 6  Deploy aiops-mcp client
+```
+make deploy-mcp-client ENV=baremetal-stage NAMESPACE=arcanna-stage TAG=b7b21686917ede432ceafda01d959f8b4d173e12
+```
+
+
+# 7 . Deploy arcanna-rag (optional)
+
+```
+make deploy-arcanna-rag ENV=baremetal-stage NAMESPACE=arcanna-stage   TAG=c2dd2d389c7924ad12eace9cb6d0e3b03d34260e
+```
+
+Using a node selector using KUBERNETES taints
+
+
+```
+make deploy-arcanna-rag ENV=baremetal-stage NAMESPACE=arcanna-stage   TAG=your-rag-image-tag \
+  HELM_EXTRA_ARGS='--set gpu.enabled=true --set gpu.nodeSelector.gpu=true --set gpu.tolerations[0].key=nvidia.com/gpu --set gpu.tolerations[0].operator=Exists --set gpu.tolerations[0].effect=NoSchedule'
+```
+
+A tolerations is the oppossite of  node selector.GPU nodes typically have a taint that says "don't schedule anything here unless you explicitly tolerate this"
+```
+kubectl taint node k8s-worker nvidia.com/gpu=:NoSchedule
+```
+

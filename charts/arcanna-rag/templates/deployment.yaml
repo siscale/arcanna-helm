@@ -1,0 +1,141 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: arcanna-rag
+  labels:
+    {{- include "arcanna-rag.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "arcanna-rag.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "arcanna-rag.selectorLabels" . | nindent 8 }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: 30
+      {{- if .Values.gpu.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.gpu.nodeSelector | nindent 8 }}
+      {{- end }}
+      {{- if .Values.gpu.tolerations }}
+      tolerations:
+        {{- toYaml .Values.gpu.tolerations | nindent 8 }}
+      {{- end }}
+      initContainers:
+        {{- if .Values.filebeat.enabled }}
+        - name: log-shipper-cleanup
+          image: {{ .Values.filebeat.image }}
+          securityContext:
+            runAsUser: 0
+          command: ['sh', '-c', 'rm -rf /arcanna-log/filebeat.lock']
+          volumeMounts:
+            - name: monitoring-log-volume
+              mountPath: /arcanna-log
+        {{- end }}
+      containers:
+        - name: arcanna-rag
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.port }}
+          env:
+            - name: COMPONENT_TYPE
+              value: "arcanna_rag"
+            - name: MONITORING_PORT
+              value: {{ .Values.port | quote }}
+            - name: DEPLOYMENT_TYPE
+              value: "k8s-deployment"
+            - name: IMAGE_TAG
+              value: {{ .Values.image.tag | quote }}
+            # ES credentials
+            - name: DATA_WAREHOUSE_USER
+              value: "elastic"
+            - name: DATA_WAREHOUSE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.esSecretName }}
+                  key: elastic
+            - name: DATA_WAREHOUSE_HOSTS
+              value: {{ .Values.elasticsearch.hosts | quote }}
+            - name: DATA_WAREHOUSE_PORT
+              value: {{ .Values.elasticsearch.port | quote }}
+            - name: DATA_WAREHOUSE_SCHEMA
+              value: {{ .Values.elasticsearch.schema | quote }}
+            # App secrets
+            - name: SEAL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: arcanna-app-credentials
+                  key: seal-token
+            - name: ARCANNA_RAG_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: arcanna-app-credentials
+                  key: rag-api-key
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+            {{- if .Values.gpu.enabled }}
+            {{- if .Values.gpu.resources }}
+              {{- toYaml .Values.gpu.resources | nindent 14 }}
+            {{- end }}
+            {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health/check
+              port: {{ .Values.port }}
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health/check
+              port: {{ .Values.port }}
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          volumeMounts:
+            - name: arcanna-rag-config
+              mountPath: /app/config/arcanna_rag.config
+              subPath: arcanna_rag.config
+            - name: monitoring-log-volume
+              mountPath: /app/log
+            - name: rag-storage-volume
+              mountPath: /app/data/storage
+        {{- if .Values.filebeat.enabled }}
+        - name: log-shipper
+          image: {{ .Values.filebeat.image }}
+          imagePullPolicy: Always
+          securityContext:
+            runAsUser: 0
+          resources:
+            {{- toYaml .Values.filebeat.resources | nindent 12 }}
+          volumeMounts:
+            - name: monitoring-log-volume
+              mountPath: /arcanna-log
+            - name: filebeat-shipper-config
+              mountPath: /usr/share/filebeat/filebeat.yml
+              subPath: filebeat.yml
+        {{- end }}
+      volumes:
+        - name: arcanna-rag-config
+          configMap:
+            name: arcanna-rag-config
+        - name: monitoring-log-volume
+          persistentVolumeClaim:
+            claimName: arcanna-rag-log-pvc
+        - name: rag-storage-volume
+          persistentVolumeClaim:
+            claimName: arcanna-rag-storage
+        {{- if .Values.filebeat.enabled }}
+        - name: filebeat-shipper-config
+          configMap:
+            name: {{ .Values.filebeat.configMapName }}
+        {{- end }}

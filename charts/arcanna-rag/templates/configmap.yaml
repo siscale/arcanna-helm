@@ -1,0 +1,74 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: arcanna-rag-config
+  labels:
+    {{- include "arcanna-rag.labels" . | nindent 4 }}
+data:
+  arcanna_rag.config: |-
+    rag_config:
+      api_key: will-be-injected
+      host: 0.0.0.0
+      port: {{ .Values.port }}
+      uvicorn_workers: {{ .Values.config.rag.uvicornWorkers }}
+      storage:
+        root: {{ .Values.config.rag.storage.root }}
+        max_file_size_bytes: {{ int .Values.config.rag.storage.maxFileSizeBytes }}
+        max_total_upload_bytes: {{ int .Values.config.rag.storage.maxTotalUploadBytes }}
+      orchestrator:
+        stuck_recovery_interval_s: {{ .Values.config.rag.orchestrator.stuckRecoveryIntervalS }}
+        conversion:
+          num_workers: {{ .Values.config.rag.orchestrator.conversion.numWorkers }}
+          stuck_timeout_minutes: {{ .Values.config.rag.orchestrator.conversion.stuckTimeoutMinutes }}
+        rag:
+          num_workers: {{ .Values.config.rag.orchestrator.rag.numWorkers }}
+          stuck_timeout_minutes: {{ .Values.config.rag.orchestrator.rag.stuckTimeoutMinutes }}
+      embedding:
+        model: {{ .Values.config.rag.embedding.model }}
+        max_tokens: {{ .Values.config.rag.embedding.maxTokens }}
+        batch_size: {{ .Values.config.rag.embedding.batchSize }}
+        dims: {{ .Values.config.rag.embedding.dims }}
+      reranker:
+        model: {{ .Values.config.rag.reranker.model }}
+        min_score: {{ .Values.config.rag.reranker.minScore }}
+      docling:
+        do_ocr: {{ .Values.config.rag.docling.doOcr }}
+        do_table_structure: {{ .Values.config.rag.docling.doTableStructure }}
+        force_full_page_ocr: {{ .Values.config.rag.docling.forceFullPageOcr }}
+        do_cell_matching: {{ .Values.config.rag.docling.doCellMatching }}
+        table_former_mode: {{ .Values.config.rag.docling.tableFormerMode }}
+        do_code_enrichment: {{ .Values.config.rag.docling.doCodeEnrichment }}
+        do_formula_enrichment: {{ .Values.config.rag.docling.doFormulaEnrichment }}
+        conversion_timeout: {{ .Values.config.rag.docling.conversionTimeout }}
+        ocr_lang: {{ .Values.config.rag.docling.ocrLang }}
+        ocr_engine: {{ .Values.config.rag.docling.ocrEngine }}
+
+    logger:
+      level: {{ .Values.config.logging.level }}
+      buffered_debug: {{ .Values.config.logging.bufferedDebug }}
+      buffer_size: {{ .Values.config.logging.bufferSize }}
+      monitoring: {{ .Values.config.logging.monitoring }}
+      metrics_interval_s: {{ .Values.config.logging.metricsIntervalS }}
+      log_rotate:
+        max_mb: 64
+        max_backup_files: 1
+        check_interval_s: 10
+
+    data_warehouse:
+      type: elastic
+      sniffing: false
+      hosts:
+        - {{ .Values.elasticsearch.hosts }}
+      port: {{ .Values.elasticsearch.port }}
+      schema: {{ .Values.elasticsearch.schema }}
+      ssl_validation: false
+      ca_file:
+      user: elastic
+      password: will-be-injected
+      request_timeout: 10
+      read_timeout: 10
+      max_connections_allowed: 64
+      http_compress: true
+
+    seal:
+      token: will-be-injected
