@@ -1,0 +1,30 @@
+serviceName: hypervisor
+componentType: hypervisor
+port: 8000
+
+image:
+  repository: gcr.io/siscale-aiops/component-webservice
+
+resources:
+  requests:
+    cpu: "150m"
+    memory: "64Mi"
+  limits:
+    cpu: "2000m"
+    memory: "2048Mi"
+
+dataVolume:
+  enabled: true
+  mountPath: /opt/arcanna/data
+  size: 10Gi
+  storageClassName: sc-stage
+
+logVolume:
+  size: 2Gi
+  storageClassName: sc-stage
+
+extraConfig:
+  enabled: true
+  name: hypervisor-config
+  mountPath: /opt/arcanna/config/hypervisor/hypervisor.config
+  subPath: hypervisor.config

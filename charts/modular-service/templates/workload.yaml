@@ -1,0 +1,133 @@
+apiVersion: apps/v1
+kind: {{ .Values.workloadType }}
+metadata:
+  name: {{ .Values.serviceName }}
+  labels:
+    {{- include "modular-service.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicas }}
+  {{- if eq .Values.workloadType "StatefulSet" }}
+  serviceName: {{ .Values.serviceName }}
+  {{- else }}
+  strategy:
+    type: {{ .Values.strategy }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "modular-service.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "modular-service.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: 30
+      initContainers:
+        {{- if .Values.filebeat.enabled }}
+        - name: log-shipper-cleanup
+          image: {{ .Values.filebeat.image }}
+          securityContext:
+            runAsUser: 0
+          command: ['sh', '-c', 'rm -rf /arcanna-log/filebeat.lock']
+          volumeMounts:
+            - name: monitoring-log-volume
+              mountPath: /arcanna-log
+        {{- end }}
+      containers:
+        - name: {{ .Values.serviceName }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.port }}
+          env:
+            {{- include "modular-service.envVars" . | nindent 12 }}
+            {{- include "modular-service.secretEnvVars" . | nindent 12 }}
+            {{- range .Values.extraEnv }}
+            - name: {{ .name }}
+              value: {{ .value | quote }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          readinessProbe:
+            tcpSocket:
+              port: {{ .Values.port }}
+            initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
+          livenessProbe:
+            tcpSocket:
+              port: {{ .Values.port }}
+            initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
+          volumeMounts:
+            - name: monitoring-log-volume
+              mountPath: /opt/arcanna/log
+            - name: main-config
+              mountPath: /opt/arcanna/config/main/main.config
+              subPath: main.config
+            {{- if .Values.dataVolume.enabled }}
+            - name: data-volume
+              mountPath: {{ .Values.dataVolume.mountPath }}
+            {{- end }}
+            {{- if .Values.extraConfig.enabled }}
+            - name: extra-config
+              mountPath: {{ .Values.extraConfig.mountPath }}
+              subPath: {{ .Values.extraConfig.subPath }}
+            {{- end }}
+        {{- if .Values.filebeat.enabled }}
+        - name: log-shipper
+          image: {{ .Values.filebeat.image }}
+          imagePullPolicy: Always
+          securityContext:
+            runAsUser: 0
+          resources:
+            {{- toYaml .Values.filebeat.resources | nindent 12 }}
+          volumeMounts:
+            - name: monitoring-log-volume
+              mountPath: /arcanna-log
+            - name: filebeat-shipper-config
+              mountPath: /usr/share/filebeat/filebeat.yml
+              subPath: filebeat.yml
+        {{- end }}
+      volumes:
+        - name: main-config
+          configMap:
+            name: main-config
+        {{- if not (eq .Values.workloadType "StatefulSet") }}
+        - name: monitoring-log-volume
+          persistentVolumeClaim:
+            claimName: {{ .Values.serviceName }}-log-pvc
+        {{- end }}
+        {{- if .Values.dataVolume.enabled }}
+        - name: data-volume
+          persistentVolumeClaim:
+            claimName: {{ .Values.serviceName }}-data-pvc
+        {{- end }}
+        {{- if .Values.extraConfig.enabled }}
+        - name: extra-config
+          configMap:
+            name: {{ .Values.extraConfig.name }}
+        {{- end }}
+        {{- if .Values.filebeat.enabled }}
+        - name: filebeat-shipper-config
+          configMap:
+            name: {{ .Values.filebeat.configMapName }}
+        {{- end }}
+  {{- if eq .Values.workloadType "StatefulSet" }}
+  volumeClaimTemplates:
+    - metadata:
+        name: monitoring-log-volume
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: {{ .Values.logVolume.size }}
+        {{- if .Values.logVolume.storageClassName }}
+        storageClassName: {{ .Values.logVolume.storageClassName }}
+        {{- end }}
+  {{- end }}

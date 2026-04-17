@@ -1,0 +1,81 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aiops-mcp-client
+  labels:
+    {{- include "aiops-mcp-client.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "aiops-mcp-client.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "aiops-mcp-client.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: aiops-mcp-client
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.port }}
+          env:
+            - name: MONITORING_PORT
+              value: {{ .Values.port | quote }}
+            - name: COMPONENT_TYPE
+              value: "aiops_mcp_client"
+            - name: DEPLOYMENT_TYPE
+              value: "k8s-deployment"
+            - name: IMAGE_TAG
+              value: {{ .Values.image.tag | quote }}
+            - name: X_ARCANNA_MCP_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: arcanna-app-credentials
+                  key: api-token
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          readinessProbe:
+            httpGet:
+              path: /health-check
+              port: {{ .Values.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health-check
+              port: {{ .Values.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts:
+            - name: monitoring-log-volume
+              mountPath: /app/log
+        {{- if .Values.filebeat.enabled }}
+        - name: log-shipper
+          image: {{ .Values.filebeat.image }}
+          imagePullPolicy: Always
+          securityContext:
+            runAsUser: 0
+          resources:
+            {{- toYaml .Values.filebeat.resources | nindent 12 }}
+          volumeMounts:
+            - name: monitoring-log-volume
+              mountPath: /arcanna-log
+            - name: filebeat-shipper-config
+              mountPath: /usr/share/filebeat/filebeat.yml
+              subPath: filebeat.yml
+        {{- end }}
+      volumes:
+        - name: monitoring-log-volume
+          emptyDir: {}
+        {{- if .Values.filebeat.enabled }}
+        - name: filebeat-shipper-config
+          configMap:
+            name: {{ .Values.filebeat.configMapName }}
+        {{- end }}

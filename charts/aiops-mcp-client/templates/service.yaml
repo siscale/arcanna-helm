@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: aiops-mcp-client-http
+  labels:
+    {{- include "aiops-mcp-client.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: {{ .Values.port }}
+      targetPort: {{ .Values.port }}
+      protocol: TCP
+  selector:
+    {{- include "aiops-mcp-client.selectorLabels" . | nindent 4 }}

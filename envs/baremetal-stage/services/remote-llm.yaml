@@ -1,0 +1,27 @@
+serviceName: remote-llm
+componentType: llm
+port: 9000
+
+image:
+  repository: gcr.io/siscale-aiops/component-webservice
+
+extraEnv:
+  - name: LLM_DEPLOYMENT_TYPE
+    value: REMOTE
+
+resources:
+  requests:
+    cpu: "100m"
+    memory: "2048Mi"
+  limits:
+    cpu: "2000m"
+    memory: "4096Mi"
+
+logVolume:
+  storageClassName: sc-stage
+
+extraConfig:
+  enabled: true
+  name: llm-config
+  mountPath: /opt/arcanna/config/llm/llm.config
+  subPath: llm.config

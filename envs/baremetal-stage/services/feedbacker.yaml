@@ -1,0 +1,15 @@
+serviceName: feedbacker
+componentType: feedbacker
+port: 8888
+
+image:
+  repository: gcr.io/siscale-aiops/component-webservice
+
+logVolume:
+  storageClassName: sc-stage
+
+extraConfig:
+  enabled: true
+  name: feedbacker-config
+  mountPath: /opt/arcanna/config/feedbacker/feedbacker.config
+  subPath: feedbacker.config

@@ -373,7 +373,14 @@ deploy-arcanna-rag:
 	$(call helm_upgrade,arcanna-rag)
 
 deploy-mcp-client:
-	$(call helm_upgrade,mcp-client)
+	@echo "──── deploying aiops-mcp-client [$(ENV)] ────"
+	helm upgrade --install aiops-mcp-client $(CHARTS_DIR)/aiops-mcp-client \
+		-n $(NAMESPACE) \
+		-f $(CHARTS_DIR)/aiops-mcp-client/values.yaml \
+		--set image.tag=$(TAG) \
+		--timeout $(HELM_TIMEOUT) \
+		--wait \
+		$(HELM_EXTRA_ARGS)
 
 deploy-platform:
 	$(call helm_upgrade,aiops-platform)

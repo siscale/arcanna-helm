@@ -1,0 +1,31 @@
+image:
+  repository: gcr.io/siscale-aiops/aiops-mcp-client
+  tag: latest
+  pullPolicy: Always
+
+imagePullSecrets:
+  - name: gcr-pull-secret
+
+replicaCount: 1
+
+port: 8001
+
+resources:
+  requests:
+    cpu: "500m"
+    memory: "512Mi"
+  limits:
+    cpu: "1000m"
+    memory: "1Gi"
+
+filebeat:
+  enabled: true
+  image: docker.elastic.co/beats/filebeat:8.19.9
+  configMapName: filebeat-shipper-config
+  resources:
+    requests:
+      cpu: "150m"
+      memory: "64Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"

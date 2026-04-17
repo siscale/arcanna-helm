@@ -1,0 +1,6 @@
+apiVersion: v2
+name: aiops-mcp-client
+description: Arcanna MCP client (Node.js multi-server wrapper)
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

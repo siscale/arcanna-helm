@@ -1,0 +1,87 @@
+# ── Identity (MUST override per service) ─────────────────────────────
+serviceName: ""
+componentType: ""
+port: 6000
+
+image:
+  repository: gcr.io/siscale-aiops/component-modular-framework
+  tag: latest
+  pullPolicy: Always
+
+imagePullSecrets:
+  - name: gcr-pull-secret
+
+# ── Workload type ────────────────────────────────────────────────────
+workloadType: Deployment    # Deployment | StatefulSet
+replicas: 1
+strategy: Recreate          # Recreate | RollingUpdate (ignored for StatefulSet)
+
+# ── Resources ────────────────────────────────────────────────────────
+resources:
+  requests:
+    cpu: "100m"
+    memory: "64Mi"
+  limits:
+    cpu: "2000m"
+    memory: "2048Mi"
+
+# ── Probes ───────────────────────────────────────────────────────────
+probes:
+  readiness:
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 3
+  liveness:
+    initialDelaySeconds: 15
+    periodSeconds: 20
+    timeoutSeconds: 3
+
+# ── Log volume ───────────────────────────────────────────────────────
+logVolume:
+  size: 512Mi
+  storageClassName: ""
+
+# ── Extra data volume (e.g. hypervisor model storage) ────────────────
+dataVolume:
+  enabled: false
+  mountPath: /opt/arcanna/data
+  size: 10Gi
+  storageClassName: ""
+
+# ── Service-specific config (optional extra ConfigMap) ───────────────
+extraConfig:
+  enabled: false
+  name: ""
+  mountPath: ""
+  subPath: ""
+  data: {}
+
+# ── Service ──────────────────────────────────────────────────────────
+service:
+  type: ClusterIP
+  nodePort:
+    enabled: false
+    port: 0
+
+# ── Filebeat sidecar ────────────────────────────────────────────────
+filebeat:
+  enabled: true
+  image: docker.elastic.co/beats/filebeat:8.19.9
+  configMapName: filebeat-shipper-config
+  resources:
+    requests:
+      cpu: "150m"
+      memory: "64Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+
+# ── Only these change per environment ────────────────────────────────
+esSecretName: aiops-staging-es-elastic-user
+
+elasticsearch:
+  hosts: "aiops-staging-es-http"
+  port: "9200"
+  schema: "https"
+# ── Extra env vars (per-service, e.g. LLM_DEPLOYMENT_TYPE) ──────────
+extraEnv: []

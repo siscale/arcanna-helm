@@ -1,0 +1,35 @@
+{{- if not (eq .Values.workloadType "StatefulSet") }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Values.serviceName }}-log-pvc
+  labels:
+    {{- include "modular-service.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.logVolume.size }}
+  {{- if .Values.logVolume.storageClassName }}
+  storageClassName: {{ .Values.logVolume.storageClassName }}
+  {{- end }}
+{{- end }}
+{{- if .Values.dataVolume.enabled }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Values.serviceName }}-data-pvc
+  labels:
+    {{- include "modular-service.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.dataVolume.size }}
+  {{- if .Values.dataVolume.storageClassName }}
+  storageClassName: {{ .Values.dataVolume.storageClassName }}
+  {{- end }}
+{{- end }}

@@ -1,0 +1,68 @@
+image:
+  repository: gcr.io/siscale-aiops/component-webservice
+  tag: latest
+  pullPolicy: Always
+
+imagePullSecrets:
+  - name: gcr-pull-secret
+
+# ── Monitoring API (port 9801) ───────────────────────────────────────
+api:
+  port: 9801
+  componentType: monitoring_api
+  resources:
+    requests:
+      cpu: "150m"
+      memory: "64Mi"
+    limits:
+      cpu: "1000m"
+      memory: "1024Mi"
+
+# ── Monitoring Shipper (port 9802) ───────────────────────────────────
+shipper:
+  port: 9802
+  componentType: monitoring_shipper
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "64Mi"
+      ephemeral-storage: "128Mi"
+    limits:
+      cpu: "2500m"
+      memory: "8092Mi"
+      ephemeral-storage: "2Gi"
+
+# ── Log volume ───────────────────────────────────────────────────────
+logVolume:
+  size: 20Gi
+  storageClassName: ""
+
+# ── Filebeat sidecar ────────────────────────────────────────────────
+filebeat:
+  enabled: true
+  image: docker.elastic.co/beats/filebeat:8.19.9
+  configMapName: filebeat-shipper-config
+  resources:
+    requests:
+      cpu: "150m"
+      memory: "64Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+
+# ── Secret references ────────────────────────────────────────────────
+esSecretName: aiops-staging-es-elastic-user
+
+elasticsearch:
+  hosts: "aiops-staging-es-http"
+  port: "9200"
+  schema: "https"
+
+# ── Service-specific configs (content inline or override per env) ────
+apiConfig: |-
+  # monitoring_api.config
+  # Override per environment
+
+shipperConfig: |-
+  # monitoring_shipper.config
+  # Override per environment
