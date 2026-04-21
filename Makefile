@@ -64,7 +64,7 @@ MONITORING_TAG         ?= $(TAG)
 PLATFORM_TAG           ?= $(TAG)
 MCP_CLIENT_TAG         ?= $(TAG)
 RELEASE_VERSION        ?= $(TAG)
-
+RAG_TAG                ?= $(TAG)
 # ── Helpers ──────────────────────────────────────────────────────────
 define helm_upgrade
 	@echo "──── deploying $(1) [$(ENV)] ────"
@@ -249,7 +249,7 @@ create-secret-app: init-namespace
 			| jq -r '.data | to_entries[] | "   \(.key): \(.value | @base64d)"'; \
 	fi
 
-create-secrets: create-secret-postgres create-secret-redis create-secret-gcr
+create-secrets: create-secret-postgres create-secret-redis create-secret-gcr create-secret-app
 	@echo ""
 	@echo "══════ All infra secrets ready [$(NAMESPACE)] ══════"
 
@@ -509,7 +509,7 @@ deploy-arcanna-rag:
 		-f $(CHARTS_DIR)/arcanna-rag/values.yaml \
 		$(if $(wildcard $(ENVS_DIR)/_common.yaml),-f $(ENVS_DIR)/_common.yaml) \
 		$(if $(wildcard $(ENVS_DIR)/arcanna-rag.yaml),-f $(ENVS_DIR)/arcanna-rag.yaml) \
-		--set image.tag=$(TAG) \
+		--set image.tag=$(RAG_TAG) \
 		--timeout $(HELM_SPECIAL_TIMEOUT) \
 		--wait \
 		$(HELM_EXTRA_ARGS)
