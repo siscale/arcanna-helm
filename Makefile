@@ -39,6 +39,7 @@ MODULAR_TAG            ?= $(TAG)
 MONITORING_TAG         ?= $(TAG)
 PLATFORM_TAG           ?= $(TAG)
 MCP_CLIENT_TAG         ?= $(TAG)
+RELEASE_VERSION        ?= $(TAG)
 
 # ── Helpers ──────────────────────────────────────────────────────────
 define helm_upgrade
@@ -299,6 +300,7 @@ deploy-rest-api:
 			-f $(CHARTS_DIR)/aiops-rest-api/values.yaml \
 			$(if $(wildcard $(ENVS_DIR)/aiops-rest-api.yaml),-f $(ENVS_DIR)/aiops-rest-api.yaml) \
 			--set secrets.create=false \
+			--set config.releaseVersion="$(RELEASE_VERSION)" \
 			--timeout $(HELM_TIMEOUT) \
 			--wait \
 			$(HELM_EXTRA_ARGS); \
@@ -309,6 +311,7 @@ deploy-rest-api:
 			-f $(CHARTS_DIR)/aiops-rest-api/values.yaml \
 			$(if $(wildcard $(ENVS_DIR)/aiops-rest-api.yaml),-f $(ENVS_DIR)/aiops-rest-api.yaml) \
 			--set secrets.create=true \
+			--set config.releaseVersion="$(RELEASE_VERSION)" \
 			--set secrets.sealToken="$(SEAL_TOKEN)" \
 			--set secrets.apiToken="$(API_TOKEN)" \
 			--set secrets.ragApiKey="$(RAG_API_KEY)" \
