@@ -1,0 +1,11 @@
+persistence:
+  storageClassName: @STORAGE_CLASS@
+  size: 1Gi
+
+resources:
+  requests:
+    cpu: "50m"
+    memory: "64Mi"
+  limits:
+    cpu: "1"
+    memory: "512Mi"

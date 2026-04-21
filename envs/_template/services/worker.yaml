@@ -1,0 +1,30 @@
+serviceName: worker
+componentType: worker
+port: 6001
+
+image:
+  repository: gcr.io/siscale-aiops/component-worker
+
+workloadType: StatefulSet
+replicas: 1
+
+resources:
+  requests:
+    cpu: "100m"
+    memory: "256Mi"
+  limits:
+    cpu: "1"
+    memory: "1Gi"
+
+probes:
+  readiness:
+    initialDelaySeconds: 45
+    periodSeconds: 10
+    timeoutSeconds: 5
+  liveness:
+    initialDelaySeconds: 45
+    periodSeconds: 20
+    timeoutSeconds: 5
+
+logVolume:
+  size: 256Mi

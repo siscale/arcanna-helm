@@ -1,0 +1,14 @@
+serviceName: retrainer
+componentType: retrainer
+port: 5306
+
+image:
+  repository: gcr.io/siscale-aiops/component-worker
+
+resources:
+  requests:
+    cpu: "100m"
+    memory: "64Mi"
+  limits:
+    cpu: "1"
+    memory: "2Gi"

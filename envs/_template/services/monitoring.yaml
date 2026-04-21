@@ -1,0 +1,8 @@
+image:
+  repository: gcr.io/siscale-aiops/component-webservice
+
+logVolume:
+  size: 5Gi
+
+# service.type / nodePort flipped to NodePort by Makefile when
+# MONITORING_URL is empty in .env.

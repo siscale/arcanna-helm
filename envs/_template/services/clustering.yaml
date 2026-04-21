@@ -1,0 +1,14 @@
+serviceName: clustering
+componentType: clustering
+port: 8989
+
+image:
+  repository: gcr.io/siscale-aiops/component-worker
+
+resources:
+  requests:
+    cpu: "100m"
+    memory: "64Mi"
+  limits:
+    cpu: "1"
+    memory: "1Gi"

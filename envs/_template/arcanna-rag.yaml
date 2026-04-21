@@ -1,0 +1,6 @@
+# Only deployed with: make deploy-arcanna-rag ENV=@ENV_NAME@
+storagePvc:
+  storageClassName: @STORAGE_CLASS@
+
+logPvc:
+  storageClassName: @STORAGE_CLASS@

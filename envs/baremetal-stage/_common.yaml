@@ -1,0 +1,29 @@
+# ─────────────────────────────────────────────────────────────────────
+# Env-wide values shared by every chart in this environment.
+# Loaded by the Makefile BEFORE each chart-specific override, so any
+# key a chart doesn't use is silently ignored.
+#
+# Only put values here that apply to EVERY chart. Anything used by a
+# single service (dataVolume, arcanna-rag's storagePvc, etc.) belongs
+# in that service's file so it can pick its own storage class.
+# ─────────────────────────────────────────────────────────────────────
+
+# Elasticsearch — used by every chart that talks to ES.
+esSecretName: aiops-staging-es-elastic-user
+
+# Top-level form (modular-service, monitoring, arcanna-rag)
+elasticsearch:
+  hosts: "aiops-staging-es-http"
+
+# Nested form (aiops-rest-api, core-framework, main-config, migration)
+config:
+  elasticsearch:
+    hosts: "aiops-staging-es-http"
+  kibana:
+    url: "https://stage-kb.arcanna.ai"
+
+# Default storage class for log volumes (every service has one).
+# Data/shared PVCs are set per-service — see services/hypervisor.yaml
+# for an example using a different class (NFS).
+logVolume:
+  storageClassName: sc-stage
