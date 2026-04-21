@@ -13,6 +13,9 @@ resources:
     cpu: "2000m"
     memory: "2048Mi"
 
+# Hypervisor keeps shared state on a data volume — often on a different
+# storage class than logs (e.g. NFS for RWX, while logs stay on local LVM).
+# Change storageClassName here to switch to NFS or another backend.
 dataVolume:
   enabled: true
   mountPath: /opt/arcanna/data
@@ -21,7 +24,6 @@ dataVolume:
 
 logVolume:
   size: 2Gi
-  storageClassName: sc-stage
 
 extraConfig:
   enabled: true

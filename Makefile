@@ -1,6 +1,12 @@
 SHELL := /bin/bash
 .DEFAULT_GOAL := help
 
+# ── Per-installation config ──────────────────────────────────────────
+# Loaded from .env at repo root. Copy .env.example to .env and edit.
+# The file is optional — unset keys fall through to the defaults below.
+-include .env
+export
+
 # ── Configuration ────────────────────────────────────────────────────
 ENV          ?= baremetal-stage
 NAMESPACE    ?= arcanna
@@ -9,8 +15,26 @@ ENVS_DIR     := envs/$(ENV)
 HELM_TIMEOUT         := 300s
 HELM_SPECIAL_TIMEOUT := 600s
 
-# Secret values — pass via env vars or --set in CI.
-# NEVER hardcode these in the Makefile or values files.
+# NodePorts used when BACKEND_URL / MONITORING_URL are empty.
+REST_API_NODE_PORT   ?= 31301
+MONITORING_NODE_PORT ?= 31302
+
+# Env bootstrap defaults (used by `make init-env` when .env doesn't set them).
+ES_CLUSTER_NAME    ?= aiops-$(ENV)
+STORAGE_CLASS      ?= sc-default
+PLATFORM_NODE_PORT ?= 31400
+EXPOSER_NODE_PORT  ?= 31403
+
+# When URLs are empty, services must expose NodePorts for the
+# auto-resolved URLs (http://<node-ip>:<port>) to actually work.
+# These --set flags are merged onto the rest-api / monitoring helm calls.
+REST_API_NODEPORT_ARGS   = $(if $(BACKEND_URL),,--set service.type=NodePort --set service.nodePort.enabled=true --set service.nodePort.port=$(REST_API_NODE_PORT))
+MONITORING_NODEPORT_ARGS = $(if $(MONITORING_URL),,--set service.type=NodePort --set service.nodePort.enabled=true --set service.nodePort.port=$(MONITORING_NODE_PORT))
+
+# Infra secrets.
+# Left empty here on purpose — the create-secret-* targets auto-generate
+# sensible values on first deploy and persist them in Kubernetes secrets.
+# Override via env vars only if you want specific credentials.
 POSTGRES_USER     ?=
 POSTGRES_PASSWORD ?=
 POSTGRES_DB       ?=
@@ -47,6 +71,7 @@ define helm_upgrade
 	helm upgrade --install $(1) $(CHARTS_DIR)/$(1) \
 		-n $(NAMESPACE) \
 		-f $(CHARTS_DIR)/$(1)/values.yaml \
+		$(if $(wildcard $(ENVS_DIR)/_common.yaml),-f $(ENVS_DIR)/_common.yaml) \
 		$(if $(wildcard $(ENVS_DIR)/$(1).yaml),-f $(ENVS_DIR)/$(1).yaml) \
 		--timeout $(HELM_TIMEOUT) \
 		--wait \
@@ -59,6 +84,7 @@ define helm_modular
 	helm upgrade --install $(1) $(CHARTS_DIR)/modular-service \
 		-n $(NAMESPACE) \
 		-f $(CHARTS_DIR)/modular-service/values.yaml \
+		$(if $(wildcard $(ENVS_DIR)/_common.yaml),-f $(ENVS_DIR)/_common.yaml) \
 		-f $(ENVS_DIR)/services/$(1).yaml \
 		--set image.tag=$(2) \
 		--timeout $(HELM_TIMEOUT) \
@@ -78,6 +104,66 @@ init-namespace:
 		|| (echo "Creating namespace $(NAMESPACE)..." && kubectl create namespace $(NAMESPACE))
 	@echo "✅ namespace $(NAMESPACE) ready"
 
+# ── Env bootstrap ───────────────────────────────────────────────────
+# `init-env` creates envs/$(ENV)/ from envs/_template/, substituting
+# values from .env. Idempotent: skips if envs/$(ENV)/ already exists.
+# Auto-called by deploy-all — fresh clones work with no manual setup.
+.PHONY: init-env reset-env diff-env
+
+init-env:
+	@if [ -z "$(ENV)" ]; then echo "❌ ENV=<name> required"; exit 1; fi
+	@if [ -d "$(ENVS_DIR)" ]; then \
+		echo "⏭  envs/$(ENV) already exists — keeping your customizations"; \
+	else \
+		echo "──── bootstrapping envs/$(ENV) from template ────"; \
+		echo "  ENV_NAME           = $(ENV)"; \
+		echo "  ES_CLUSTER_NAME    = $(ES_CLUSTER_NAME)"; \
+		echo "  STORAGE_CLASS      = $(STORAGE_CLASS)"; \
+		echo "  PLATFORM_NODE_PORT = $(PLATFORM_NODE_PORT)"; \
+		echo "  EXPOSER_NODE_PORT  = $(EXPOSER_NODE_PORT)"; \
+		mkdir -p $(ENVS_DIR)/services; \
+		for f in envs/_template/*.yaml envs/_template/services/*.yaml; do \
+			rel=$${f#envs/_template/}; \
+			dest=$(ENVS_DIR)/$$rel; \
+			mkdir -p $$(dirname $$dest); \
+			sed -e "s|@ENV_NAME@|$(ENV)|g" \
+			    -e "s|@ES_CLUSTER_NAME@|$(ES_CLUSTER_NAME)|g" \
+			    -e "s|@STORAGE_CLASS@|$(STORAGE_CLASS)|g" \
+			    -e "s|@PLATFORM_NODE_PORT@|$(PLATFORM_NODE_PORT)|g" \
+			    -e "s|@EXPOSER_NODE_PORT@|$(EXPOSER_NODE_PORT)|g" \
+			    "$$f" > "$$dest"; \
+		done; \
+		echo "✅ envs/$(ENV) created ($$(find $(ENVS_DIR) -type f | wc -l) files)"; \
+		echo "   Review/edit the files above if needed, then run: make deploy-all"; \
+	fi
+
+reset-env:
+	@if [ -z "$(ENV)" ]; then echo "❌ ENV=<name> required"; exit 1; fi
+	@if [ ! -d "$(ENVS_DIR)" ]; then echo "⏭  envs/$(ENV) doesn't exist"; exit 0; fi
+	@echo "⚠️  This will DELETE envs/$(ENV)/ — your local customizations will be lost."
+	@read -p "   Type the env name to confirm: " confirm && [ "$$confirm" = "$(ENV)" ] || { echo "cancelled"; exit 1; }
+	rm -rf "$(ENVS_DIR)"
+	@echo "✅ envs/$(ENV) removed. Run `make init-env ENV=$(ENV)` to regenerate."
+
+diff-env:
+	@if [ -z "$(ENV)" ]; then echo "❌ ENV=<name> required"; exit 1; fi
+	@if [ ! -d "$(ENVS_DIR)" ]; then echo "❌ envs/$(ENV) doesn't exist — run init-env first"; exit 1; fi
+	@echo "── drift between envs/$(ENV)/ and current envs/_template/ ──"
+	@echo "(shows what your env has that the template doesn't, and vice versa)"
+	@TMP=$$(mktemp -d); \
+	for f in envs/_template/*.yaml envs/_template/services/*.yaml; do \
+		rel=$${f#envs/_template/}; \
+		mkdir -p $$TMP/$$(dirname $$rel); \
+		sed -e "s|@ENV_NAME@|$(ENV)|g" \
+		    -e "s|@ES_CLUSTER_NAME@|$(ES_CLUSTER_NAME)|g" \
+		    -e "s|@STORAGE_CLASS@|$(STORAGE_CLASS)|g" \
+		    -e "s|@PLATFORM_NODE_PORT@|$(PLATFORM_NODE_PORT)|g" \
+		    -e "s|@EXPOSER_NODE_PORT@|$(EXPOSER_NODE_PORT)|g" \
+		    "$$f" > "$$TMP/$$rel"; \
+	done; \
+	diff -ruN $$TMP $(ENVS_DIR) || true; \
+	rm -rf $$TMP
+
 # ── Secrets ─────────────────────────────────────────────────────────
 .PHONY: create-secrets create-secret-postgres create-secret-redis create-secret-gcr check-secrets
 
@@ -85,32 +171,46 @@ create-secret-postgres: init-namespace
 	@if kubectl get secret postgres-credentials -n $(NAMESPACE) >/dev/null 2>&1; then \
 		echo "⏭  postgres-credentials already exists in $(NAMESPACE)"; \
 	else \
-		if [ -z "$(POSTGRES_USER)" ] || [ -z "$(POSTGRES_PASSWORD)" ] || [ -z "$(POSTGRES_DB)" ]; then \
-			echo "❌ Missing env vars. Export POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB"; \
-			exit 1; \
+		USER="$${POSTGRES_USER:-$(POSTGRES_USER)}"; USER="$${USER:-arcanna}"; \
+		DB="$${POSTGRES_DB:-$(POSTGRES_DB)}"; DB="$${DB:-arcanna}"; \
+		PASS="$${POSTGRES_PASSWORD:-$(POSTGRES_PASSWORD)}"; \
+		if [ -z "$$PASS" ]; then \
+			PASS=$$(openssl rand -base64 32 | tr -d '/+=' | head -c 32); \
+			GENERATED=1; \
 		fi; \
 		echo "Creating postgres-credentials..."; \
 		kubectl create secret generic postgres-credentials \
 			-n $(NAMESPACE) \
-			--from-literal=user="$(POSTGRES_USER)" \
-			--from-literal=password="$(POSTGRES_PASSWORD)" \
-			--from-literal=database="$(POSTGRES_DB)"; \
+			--from-literal=user="$$USER" \
+			--from-literal=password="$$PASS" \
+			--from-literal=database="$$DB"; \
 		echo "✅ postgres-credentials created"; \
+		if [ -n "$$GENERATED" ]; then \
+			echo "   ⚠️  Auto-generated password — save it now, it won't be shown again:"; \
+			echo "     user:     $$USER"; \
+			echo "     password: $$PASS"; \
+			echo "     database: $$DB"; \
+		fi; \
 	fi
 
 create-secret-redis: init-namespace
 	@if kubectl get secret redis-credentials -n $(NAMESPACE) >/dev/null 2>&1; then \
 		echo "⏭  redis-credentials already exists in $(NAMESPACE)"; \
 	else \
-		if [ -z "$(REDIS_PASSWORD)" ]; then \
-			echo "❌ Missing env var. Export REDIS_PASSWORD"; \
-			exit 1; \
+		PASS="$${REDIS_PASSWORD:-$(REDIS_PASSWORD)}"; \
+		if [ -z "$$PASS" ]; then \
+			PASS=$$(openssl rand -base64 32 | tr -d '/+=' | head -c 32); \
+			GENERATED=1; \
 		fi; \
 		echo "Creating redis-credentials..."; \
 		kubectl create secret generic redis-credentials \
 			-n $(NAMESPACE) \
-			--from-literal=password="$(REDIS_PASSWORD)"; \
+			--from-literal=password="$$PASS"; \
 		echo "✅ redis-credentials created"; \
+		if [ -n "$$GENERATED" ]; then \
+			echo "   ⚠️  Auto-generated password — save it now, it won't be shown again:"; \
+			echo "     password: $$PASS"; \
+		fi; \
 	fi
 
 create-secret-gcr: init-namespace
@@ -277,6 +377,7 @@ define helm_migration
 	helm install migration-$(1) $(CHARTS_DIR)/migration \
 		-n $(NAMESPACE) \
 		-f $(CHARTS_DIR)/migration/values.yaml \
+		$(if $(wildcard $(ENVS_DIR)/_common.yaml),-f $(ENVS_DIR)/_common.yaml) \
 		$(if $(wildcard $(ENVS_DIR)/migration.yaml),-f $(ENVS_DIR)/migration.yaml) \
 		--set phase=$(1) \
 		--set extraArgs=$(2) \
@@ -294,22 +395,27 @@ deploy-migration-end:
 
 deploy-rest-api:
 	@if kubectl get secret arcanna-app-credentials -n $(NAMESPACE) >/dev/null 2>&1; then \
-		echo "──── deploying aiops-rest-api [$(ENV)] (secret exists, skipping creation) ────"; \
+		echo "──── deploying aiops-rest-api [$(ENV)] tag=$(REST_API_TAG) (secret exists) ────"; \
 		helm upgrade --install aiops-rest-api $(CHARTS_DIR)/aiops-rest-api \
 			-n $(NAMESPACE) \
 			-f $(CHARTS_DIR)/aiops-rest-api/values.yaml \
+			$(if $(wildcard $(ENVS_DIR)/_common.yaml),-f $(ENVS_DIR)/_common.yaml) \
 			$(if $(wildcard $(ENVS_DIR)/aiops-rest-api.yaml),-f $(ENVS_DIR)/aiops-rest-api.yaml) \
+			--set image.tag=$(REST_API_TAG) \
 			--set secrets.create=false \
 			--set config.releaseVersion="$(RELEASE_VERSION)" \
+			$(REST_API_NODEPORT_ARGS) \
 			--timeout $(HELM_TIMEOUT) \
 			--wait \
 			$(HELM_EXTRA_ARGS); \
 	else \
-		echo "──── deploying aiops-rest-api [$(ENV)] (generating app secrets) ────"; \
+		echo "──── deploying aiops-rest-api [$(ENV)] tag=$(REST_API_TAG) (generating app secrets) ────"; \
 		helm upgrade --install aiops-rest-api $(CHARTS_DIR)/aiops-rest-api \
 			-n $(NAMESPACE) \
 			-f $(CHARTS_DIR)/aiops-rest-api/values.yaml \
+			$(if $(wildcard $(ENVS_DIR)/_common.yaml),-f $(ENVS_DIR)/_common.yaml) \
 			$(if $(wildcard $(ENVS_DIR)/aiops-rest-api.yaml),-f $(ENVS_DIR)/aiops-rest-api.yaml) \
+			--set image.tag=$(REST_API_TAG) \
 			--set secrets.create=true \
 			--set config.releaseVersion="$(RELEASE_VERSION)" \
 			--set secrets.sealToken="$(SEAL_TOKEN)" \
@@ -317,6 +423,7 @@ deploy-rest-api:
 			--set secrets.ragApiKey="$(RAG_API_KEY)" \
 			--set secrets.monitoringApiKey="$(MONITORING_API_KEY)" \
 			--set secrets.monitoringSecret="$(MONITORING_SECRET)" \
+			$(REST_API_NODEPORT_ARGS) \
 			--timeout $(HELM_TIMEOUT) \
 			--wait \
 			$(HELM_EXTRA_ARGS); \
@@ -327,7 +434,16 @@ deploy-rest-api:
 	fi
 
 deploy-core-framework:
-	$(call helm_upgrade,core-framework)
+	@echo "──── deploying core-framework [$(ENV)] tag=$(CORE_FRAMEWORK_TAG) ────"
+	helm upgrade --install core-framework $(CHARTS_DIR)/core-framework \
+		-n $(NAMESPACE) \
+		-f $(CHARTS_DIR)/core-framework/values.yaml \
+		$(if $(wildcard $(ENVS_DIR)/_common.yaml),-f $(ENVS_DIR)/_common.yaml) \
+		$(if $(wildcard $(ENVS_DIR)/core-framework.yaml),-f $(ENVS_DIR)/core-framework.yaml) \
+		--set image.tag=$(CORE_FRAMEWORK_TAG) \
+		--timeout $(HELM_TIMEOUT) \
+		--wait \
+		$(HELM_EXTRA_ARGS)
 
 # ── Modular-service deployments (one chart, per-service values) ──────
 .PHONY: deploy-hypervisor deploy-exposer deploy-agents-exposer
@@ -360,6 +476,7 @@ deploy-worker:
 	helm upgrade --install worker $(CHARTS_DIR)/modular-service \
 		-n $(NAMESPACE) \
 		-f $(CHARTS_DIR)/modular-service/values.yaml \
+		$(if $(wildcard $(ENVS_DIR)/_common.yaml),-f $(ENVS_DIR)/_common.yaml) \
 		-f $(ENVS_DIR)/services/worker.yaml \
 		--set image.tag=$(MODULAR_TAG) \
 		--timeout $(HELM_SPECIAL_TIMEOUT) \
@@ -377,8 +494,10 @@ deploy-monitoring:
 	helm upgrade --install monitoring $(CHARTS_DIR)/monitoring \
 		-n $(NAMESPACE) \
 		-f $(CHARTS_DIR)/monitoring/values.yaml \
+		$(if $(wildcard $(ENVS_DIR)/_common.yaml),-f $(ENVS_DIR)/_common.yaml) \
 		$(if $(wildcard $(ENVS_DIR)/services/monitoring.yaml),-f $(ENVS_DIR)/services/monitoring.yaml) \
 		--set image.tag=$(MONITORING_TAG) \
+		$(MONITORING_NODEPORT_ARGS) \
 		--timeout $(HELM_TIMEOUT) \
 		--wait \
 		$(HELM_EXTRA_ARGS)
@@ -388,6 +507,7 @@ deploy-arcanna-rag:
 	helm upgrade --install arcanna-rag $(CHARTS_DIR)/arcanna-rag \
 		-n $(NAMESPACE) \
 		-f $(CHARTS_DIR)/arcanna-rag/values.yaml \
+		$(if $(wildcard $(ENVS_DIR)/_common.yaml),-f $(ENVS_DIR)/_common.yaml) \
 		$(if $(wildcard $(ENVS_DIR)/arcanna-rag.yaml),-f $(ENVS_DIR)/arcanna-rag.yaml) \
 		--set image.tag=$(TAG) \
 		--timeout $(HELM_SPECIAL_TIMEOUT) \
@@ -399,6 +519,8 @@ deploy-mcp-client:
 	helm upgrade --install aiops-mcp-client $(CHARTS_DIR)/aiops-mcp-client \
 		-n $(NAMESPACE) \
 		-f $(CHARTS_DIR)/aiops-mcp-client/values.yaml \
+		$(if $(wildcard $(ENVS_DIR)/_common.yaml),-f $(ENVS_DIR)/_common.yaml) \
+		$(if $(wildcard $(ENVS_DIR)/aiops-mcp-client.yaml),-f $(ENVS_DIR)/aiops-mcp-client.yaml) \
 		--set image.tag=$(MCP_CLIENT_TAG) \
 		--timeout $(HELM_TIMEOUT) \
 		--wait \
@@ -406,11 +528,39 @@ deploy-mcp-client:
 
 deploy-platform:
 	@echo "──── deploying aiops-platform [$(ENV)] ────"
+	@BURL="$${BACKEND_URL:-$(BACKEND_URL)}"; \
+	MURL="$${MONITORING_URL:-$(MONITORING_URL)}"; \
+	if [ -z "$$BURL" ] || [ -z "$$MURL" ]; then \
+		NODE_IP=$$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}' 2>/dev/null); \
+		if [ -z "$$NODE_IP" ]; then \
+			echo "❌ BACKEND_URL/MONITORING_URL are empty and no node IP could be detected."; \
+			echo "   Either set the URLs in .env, or ensure kubectl can reach the cluster."; \
+			exit 1; \
+		fi; \
+		if [ -z "$$BURL" ]; then \
+			BURL="http://$$NODE_IP:$(REST_API_NODE_PORT)"; \
+			echo "  ℹ  BACKEND_URL    = $$BURL  (auto: node IP + REST_API_NODE_PORT)"; \
+		else \
+			echo "  ℹ  BACKEND_URL    = $$BURL  (from .env)"; \
+		fi; \
+		if [ -z "$$MURL" ]; then \
+			MURL="http://$$NODE_IP:$(MONITORING_NODE_PORT)"; \
+			echo "  ℹ  MONITORING_URL = $$MURL  (auto: node IP + MONITORING_NODE_PORT)"; \
+		else \
+			echo "  ℹ  MONITORING_URL = $$MURL  (from .env)"; \
+		fi; \
+	else \
+		echo "  ℹ  BACKEND_URL    = $$BURL  (from .env)"; \
+		echo "  ℹ  MONITORING_URL = $$MURL  (from .env)"; \
+	fi; \
 	helm upgrade --install aiops-platform $(CHARTS_DIR)/aiops-platform \
 		-n $(NAMESPACE) \
 		-f $(CHARTS_DIR)/aiops-platform/values.yaml \
+		$(if $(wildcard $(ENVS_DIR)/_common.yaml),-f $(ENVS_DIR)/_common.yaml) \
 		$(if $(wildcard $(ENVS_DIR)/aiops-platform.yaml),-f $(ENVS_DIR)/aiops-platform.yaml) \
 		--set image.tag=$(PLATFORM_TAG) \
+		--set backendUrl="$$BURL" \
+		--set monitoringUrl="$$MURL" \
 		--timeout $(HELM_TIMEOUT) \
 		--wait \
 		$(HELM_EXTRA_ARGS)
@@ -418,9 +568,9 @@ deploy-platform:
 deploy-main-config:
 	$(call helm_upgrade,main-config)
 
-# ── Full deploy (secrets → infra → app, ordered) ────────────────────
+# ── Full deploy (bootstrap → secrets → infra → app, ordered) ───────
 .PHONY: deploy-all
-deploy-all: deploy-infra
+deploy-all: init-env deploy-infra
 	@echo ""
 	@echo "══════ Phase 2: shared config ══════"
 	$(MAKE) deploy-main-config ENV=$(ENV)

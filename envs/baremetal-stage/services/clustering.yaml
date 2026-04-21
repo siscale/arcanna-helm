@@ -12,7 +12,3 @@ resources:
   limits:
     cpu: "2000m"
     memory: "2048Mi"
-
-logVolume:
-  storageClassName: sc-stage
-

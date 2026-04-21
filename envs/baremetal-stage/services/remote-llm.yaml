@@ -17,9 +17,6 @@ resources:
     cpu: "2000m"
     memory: "4096Mi"
 
-logVolume:
-  storageClassName: sc-stage
-
 extraConfig:
   enabled: true
   name: llm-config

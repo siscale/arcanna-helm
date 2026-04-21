@@ -1,11 +1,2 @@
 image:
   repository: gcr.io/siscale-aiops/component-core-standalone
-
-esSecretName: aiops-staging-es-elastic-user
-
-logVolume:
-  storageClassName: sc-stage
-
-config:
-  elasticsearch:
-    hosts: "aiops-staging-es-http"

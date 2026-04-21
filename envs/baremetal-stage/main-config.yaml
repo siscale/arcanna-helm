@@ -1,3 +1,1 @@
-config:
-  elasticsearch:
-    hosts: "aiops-staging-es-http"
+# All shared values come from _common.yaml.

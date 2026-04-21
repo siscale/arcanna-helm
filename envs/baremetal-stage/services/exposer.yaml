@@ -10,9 +10,6 @@ service:
     enabled: true
     port: 32566
 
-logVolume:
-  storageClassName: sc-stage
-
 extraConfig:
   enabled: true
   name: exposer-config

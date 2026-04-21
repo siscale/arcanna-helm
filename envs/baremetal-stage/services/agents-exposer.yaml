@@ -5,9 +5,6 @@ port: 9888
 image:
   repository: gcr.io/siscale-aiops/agents-component
 
-logVolume:
-  storageClassName: sc-stage
-
 extraConfig:
   enabled: true
   name: agents-exposer-config

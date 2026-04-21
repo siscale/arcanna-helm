@@ -5,9 +5,6 @@ port: 9777
 image:
   repository: gcr.io/siscale-aiops/component-webservice
 
-logVolume:
-  storageClassName: sc-stage
-
 extraConfig:
   enabled: true
   name: cacher-config
