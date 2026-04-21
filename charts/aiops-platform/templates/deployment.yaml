@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aiops-platform
+  labels:
+    {{- include "aiops-platform.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "aiops-platform.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "aiops-platform.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: aiops-platform
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.port }}
+          env:
+            - name: VITE_BACKEND_URL
+              value: {{ .Values.backendUrl | quote }}
+            - name: VITE_MONITORING_URL
+              value: {{ .Values.monitoringUrl | quote }}
+            - name: VITE_REST_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: arcanna-app-credentials
+                  key: api-token
+            - name: VITE_MONITORING_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: arcanna-app-credentials
+                  key: monitoring-api-key
+            - name: VITE_BRANDING_FOLDER
+              value: {{ .Values.brandingFolder | quote }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          readinessProbe:
+            httpGet:
+              path: /
+              port: {{ .Values.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /
+              port: {{ .Values.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 5

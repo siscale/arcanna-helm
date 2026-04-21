@@ -110,3 +110,29 @@ A tolerations is the oppossite of  node selector.GPU nodes typically have a tain
 kubectl taint node k8s-worker nvidia.com/gpu=:NoSchedule
 ```
 
+#8. Deploy aiops-platform.
+```
+ make deploy-platform ENV=baremetal-stage NAMESPACE=arcanna-stage PLATFORM_TAG=73a40ca70abd650e92e768944626950d5605e62b
+
+```
+
+
+
+#10. Upgrade all
+
+```
+make upgrade-all ENV=baremetal-stage NAMESPACE=arcanna-stage \
+  REST_API_TAG=v1.78.1 \
+  CORE_FRAMEWORK_TAG=v1.78.1 \
+  MIGRATION_TAG=v1.78.1 \
+  MODULAR_TAG=v1.78.1 \
+  MONITORING_TAG=v1.78.1 \
+  MCP_CLIENT_TAG=v1.7.3 \
+  PLATFORM_TAG=v1.78.0
+  
+  
+  
+make deploy-arcanna-rag ENV=baremetal-stage NAMESPACE=arcanna-stage TAG=v1.0.0
+```
+
+

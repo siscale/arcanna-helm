@@ -6,7 +6,8 @@ ENV          ?= baremetal-stage
 NAMESPACE    ?= arcanna
 CHARTS_DIR   := charts
 ENVS_DIR     := envs/$(ENV)
-HELM_TIMEOUT := 300s
+HELM_TIMEOUT         := 300s
+HELM_SPECIAL_TIMEOUT := 600s
 
 # Secret values — pass via env vars or --set in CI.
 # NEVER hardcode these in the Makefile or values files.
@@ -36,6 +37,8 @@ CORE_FRAMEWORK_TAG     ?= $(TAG)
 MIGRATION_TAG          ?= $(TAG)
 MODULAR_TAG            ?= $(TAG)
 MONITORING_TAG         ?= $(TAG)
+PLATFORM_TAG           ?= $(TAG)
+MCP_CLIENT_TAG         ?= $(TAG)
 
 # ── Helpers ──────────────────────────────────────────────────────────
 define helm_upgrade
@@ -350,7 +353,15 @@ deploy-retrainer:
 	$(call helm_modular,retrainer,$(MODULAR_TAG))
 
 deploy-worker:
-	$(call helm_modular,worker,$(MODULAR_TAG))
+	@echo "──── deploying worker [$(ENV)] (modular-service) ────"
+	helm upgrade --install worker $(CHARTS_DIR)/modular-service \
+		-n $(NAMESPACE) \
+		-f $(CHARTS_DIR)/modular-service/values.yaml \
+		-f $(ENVS_DIR)/services/worker.yaml \
+		--set image.tag=$(MODULAR_TAG) \
+		--timeout $(HELM_SPECIAL_TIMEOUT) \
+		--wait \
+		$(HELM_EXTRA_ARGS)
 
 deploy-feedbacker:
 	$(call helm_modular,feedbacker,$(MODULAR_TAG))
@@ -376,7 +387,7 @@ deploy-arcanna-rag:
 		-f $(CHARTS_DIR)/arcanna-rag/values.yaml \
 		$(if $(wildcard $(ENVS_DIR)/arcanna-rag.yaml),-f $(ENVS_DIR)/arcanna-rag.yaml) \
 		--set image.tag=$(TAG) \
-		--timeout $(HELM_TIMEOUT) \
+		--timeout $(HELM_SPECIAL_TIMEOUT) \
 		--wait \
 		$(HELM_EXTRA_ARGS)
 
@@ -385,13 +396,21 @@ deploy-mcp-client:
 	helm upgrade --install aiops-mcp-client $(CHARTS_DIR)/aiops-mcp-client \
 		-n $(NAMESPACE) \
 		-f $(CHARTS_DIR)/aiops-mcp-client/values.yaml \
-		--set image.tag=$(TAG) \
+		--set image.tag=$(MCP_CLIENT_TAG) \
 		--timeout $(HELM_TIMEOUT) \
 		--wait \
 		$(HELM_EXTRA_ARGS)
 
 deploy-platform:
-	$(call helm_upgrade,aiops-platform)
+	@echo "──── deploying aiops-platform [$(ENV)] ────"
+	helm upgrade --install aiops-platform $(CHARTS_DIR)/aiops-platform \
+		-n $(NAMESPACE) \
+		-f $(CHARTS_DIR)/aiops-platform/values.yaml \
+		$(if $(wildcard $(ENVS_DIR)/aiops-platform.yaml),-f $(ENVS_DIR)/aiops-platform.yaml) \
+		--set image.tag=$(PLATFORM_TAG) \
+		--timeout $(HELM_TIMEOUT) \
+		--wait \
+		$(HELM_EXTRA_ARGS)
 
 deploy-main-config:
 	$(call helm_upgrade,main-config)
@@ -414,6 +433,7 @@ deploy-all: deploy-infra
 	$(MAKE) deploy-agents-exposer ENV=$(ENV)
 	$(MAKE) deploy-feedbacker ENV=$(ENV)
 	$(MAKE) deploy-remote-llm ENV=$(ENV)
+	$(MAKE) deploy-mcp-client ENV=$(ENV)
 	@echo ""
 	@echo "══════ Phase 5: workers + processing ══════"
 	$(MAKE) deploy-worker ENV=$(ENV)
@@ -452,8 +472,10 @@ upgrade-all:
 	$(MAKE) deploy-retrainer ENV=$(ENV)
 	$(MAKE) deploy-clustering ENV=$(ENV)
 	$(MAKE) deploy-cacher ENV=$(ENV)
+	$(MAKE) deploy-mcp-client ENV=$(ENV)
 	$(MAKE) deploy-monitoring ENV=$(ENV)
 	$(MAKE) deploy-migration-end ENV=$(ENV) HELM_EXTRA_ARGS='--set image.tag=$(MIGRATION_TAG)'
+	$(MAKE) deploy-platform ENV=$(ENV)
 	@echo ""
 	@echo "✅ Upgrade complete [$(ENV)] TAG=$(TAG)"
 

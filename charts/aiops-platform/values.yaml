@@ -1,0 +1,30 @@
+image:
+  repository: gcr.io/siscale-aiops/aiops-platform-release
+  tag: latest
+  pullPolicy: Always
+
+imagePullSecrets:
+  - name: gcr-pull-secret
+
+port: 8080
+
+resources:
+  requests:
+    cpu: "250m"
+    memory: "64Mi"
+  limits:
+    cpu: "2000m"
+    memory: "2Gi"
+
+# ── URLs (MUST set per environment) ──────────────────────────────────
+backendUrl: ""       # e.g. https://stage-pub-rest.arcanna.ai
+monitoringUrl: ""    # e.g. https://stage-pub-monitoring.arcanna.ai
+
+# ── Branding ─────────────────────────────────────────────────────────
+brandingFolder: "siscale"
+
+# ── Service ──────────────────────────────────────────────────────────
+service:
+  nodePort:
+    enabled: false
+    port: 31300

@@ -1,0 +1,7 @@
+backendUrl: "https://stage-rest.arcanna.ai"
+monitoringUrl: "https://stage-monitoring.arcanna.ai"
+
+service:
+  nodePort:
+    enabled: true
+    port: 31300
