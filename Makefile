@@ -63,8 +63,9 @@ MODULAR_TAG            ?= $(TAG)
 MONITORING_TAG         ?= $(TAG)
 PLATFORM_TAG           ?= $(TAG)
 MCP_CLIENT_TAG         ?= $(TAG)
-RELEASE_VERSION        ?= $(TAG)
 RAG_TAG                ?= $(TAG)
+RELEASE_VERSION        ?= $(TAG)
+
 # ── Helpers ──────────────────────────────────────────────────────────
 define helm_upgrade
 	@echo "──── deploying $(1) [$(ENV)] ────"
@@ -244,9 +245,6 @@ create-secret-app: init-namespace
 			--from-literal=monitoring-api-key="$(MONITORING_API_KEY)" \
 			--from-literal=monitoring-secret="$(MONITORING_SECRET)"; \
 		echo "✅ arcanna-app-credentials created"; \
-		echo "   ⚠️  Save these values — they won't be shown again:"; \
-		kubectl get secret arcanna-app-credentials -n $(NAMESPACE) -o json \
-			| jq -r '.data | to_entries[] | "   \(.key): \(.value | @base64d)"'; \
 	fi
 
 create-secrets: create-secret-postgres create-secret-redis create-secret-gcr create-secret-app
@@ -503,7 +501,7 @@ deploy-monitoring:
 		$(HELM_EXTRA_ARGS)
 
 deploy-arcanna-rag:
-	@echo "──── deploying arcanna-rag [$(ENV)] (manual — not in deploy-all) ────"
+	@echo "──── deploying arcanna-rag [$(ENV)] tag=$(RAG_TAG) (manual — not in deploy-all) ────"
 	helm upgrade --install arcanna-rag $(CHARTS_DIR)/arcanna-rag \
 		-n $(NAMESPACE) \
 		-f $(CHARTS_DIR)/arcanna-rag/values.yaml \
@@ -650,17 +648,90 @@ status:
 	@echo "PVCs:"
 	@kubectl get pvc -n $(NAMESPACE)
 
-# ── Teardown (careful!) ─────────────────────────────────────────────
-.PHONY: destroy-infra
-destroy-infra:
-	@echo "⚠️  This will DELETE all infra releases in $(NAMESPACE). Ctrl+C to abort."
-	@sleep 5
-	-helm uninstall kibana        -n $(NAMESPACE) 2>/dev/null
-	-helm uninstall kafka         -n $(NAMESPACE) 2>/dev/null
-	-helm uninstall redis         -n $(NAMESPACE) 2>/dev/null
-	-helm uninstall postgres      -n $(NAMESPACE) 2>/dev/null
-	-helm uninstall elasticsearch -n $(NAMESPACE) 2>/dev/null
-	@echo "Infra releases removed. PVCs and secrets are retained."
+# ── Teardown ────────────────────────────────────────────────────────
+# Three levels, least to most destructive:
+#   destroy-app     — uninstall all helm releases. Keeps PVCs + secrets
+#                     so you can redeploy without losing data.
+#   destroy-data    — delete PVCs and installer-created secrets. Data loss.
+#   destroy-all     — the above.Clean slate.
+#
+# All three require typing the namespace name to confirm.
+.PHONY: destroy-infra destroy-app destroy-data destroy-namespace destroy-all show-resources
+
+show-resources:
+	@echo "── Helm releases in $(NAMESPACE) ──"
+	@helm list -n $(NAMESPACE) -o table 2>/dev/null || echo "  (none)"
+	@echo ""
+	@echo "── PVCs ──"
+	@kubectl get pvc -n $(NAMESPACE) 2>/dev/null || echo "  (none)"
+	@echo ""
+	@echo "── Secrets (installer-managed) ──"
+	@for s in postgres-credentials redis-credentials gcr-pull-secret arcanna-app-credentials; do \
+		kubectl get secret $$s -n $(NAMESPACE) --no-headers 2>/dev/null || echo "  $$s  (not present)"; \
+	done
+
+destroy-app:
+	@echo ""
+	@echo "⚠️  Will uninstall ALL helm releases in namespace: $(NAMESPACE)"
+	@echo "    PVCs and secrets are kept — you can redeploy without data loss."
+	@echo ""
+	@read -p "Type the namespace name to confirm: " c && [ "$$c" = "$(NAMESPACE)" ] || { echo "cancelled"; exit 1; }
+	@echo ""
+	@for r in $$(helm list -n $(NAMESPACE) -q 2>/dev/null); do \
+		echo "──── uninstalling $$r ────"; \
+		helm uninstall $$r -n $(NAMESPACE) --timeout $(HELM_TIMEOUT) || true; \
+	done
+	@echo "✅ all helm releases removed from $(NAMESPACE)"
+
+destroy-data:
+	@echo ""
+	@echo "⚠️  Will DELETE PVCs and installer secrets in: $(NAMESPACE)"
+	@echo "    This is permanent data loss (ES, Kafka, PG, Redis)."
+	@echo ""
+	@read -p "Type the namespace name to confirm: " c && [ "$$c" = "$(NAMESPACE)" ] || { echo "cancelled"; exit 1; }
+	@echo ""
+	@echo "── deleting PVCs ──"
+	-kubectl delete pvc --all -n $(NAMESPACE) --timeout=$(HELM_TIMEOUT) 2>/dev/null || true
+	@echo "── deleting installer secrets ──"
+	-kubectl delete secret postgres-credentials redis-credentials gcr-pull-secret arcanna-app-credentials -n $(NAMESPACE) 2>/dev/null || true
+	@echo "✅ PVCs + installer secrets deleted from $(NAMESPACE)"
+
+destroy-namespace:
+	@echo ""
+	@echo "⚠️  Will DELETE namespace: $(NAMESPACE)"
+	@echo ""
+	@read -p "Type the namespace name to confirm: " c && [ "$$c" = "$(NAMESPACE)" ] || { echo "cancelled"; exit 1; }
+	kubectl delete namespace $(NAMESPACE) --timeout=$(HELM_TIMEOUT)
+	@echo "✅ namespace $(NAMESPACE) deleted"
+
+destroy-all:
+	@echo ""
+	@echo "⚠️  ════════════════════════════════════════════════════════════"
+	@echo "⚠️   COMPLETE TEARDOWN OF $(NAMESPACE)"
+	@echo "⚠️     • uninstall every helm release (app + infra)"
+	@echo "⚠️     • delete all PVCs (ES, Kafka, PG, Redis data — gone)"
+	@echo "⚠️     • delete all secrets (passwords will be regenerated next install)"
+	@echo "⚠️     • To delete the namespace itself use make destroy-namespace"
+	@echo "⚠️  ════════════════════════════════════════════════════════════"
+	@echo ""
+	@read -p "Type the namespace name to confirm: " c && [ "$$c" = "$(NAMESPACE)" ] || { echo "cancelled"; exit 1; }
+	@echo ""
+	@echo "══════ Phase 1: helm uninstall ══════"
+	@for r in $$(helm list -n $(NAMESPACE) -q 2>/dev/null); do \
+		echo "──── uninstalling $$r ────"; \
+		helm uninstall $$r -n $(NAMESPACE) --timeout $(HELM_TIMEOUT) 2>/dev/null || true; \
+	done
+	@echo ""
+	@echo "══════ Phase 2: remove PVCs (data) ══════"
+	-kubectl delete pvc --all -n $(NAMESPACE) --timeout=$(HELM_TIMEOUT) --ignore-not-found 2>/dev/null
+	@echo ""
+	@echo "══════ Phase 3: remove configmaps + secrets ══════"
+	-kubectl delete configmap --all -n $(NAMESPACE) --ignore-not-found 2>/dev/null
+	-kubectl delete secret --all -n $(NAMESPACE) --ignore-not-found 2>/dev/null
+
+# Legacy alias — kept for backward compat
+destroy-infra: destroy-app
+	@echo "(destroy-infra is now an alias for destroy-app)"
 
 # ── Help ────────────────────────────────────────────────────────────
 .PHONY: help
