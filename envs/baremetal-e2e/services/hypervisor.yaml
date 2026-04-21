@@ -1,0 +1,31 @@
+serviceName: hypervisor
+componentType: hypervisor
+port: 8000
+
+image:
+  repository: gcr.io/siscale-aiops/component-webservice
+
+resources:
+  requests:
+    cpu: "100m"
+    memory: "64Mi"
+  limits:
+    cpu: "1"
+    memory: "1Gi"
+
+# Hypervisor data volume — switch storageClassName to NFS (or any RWX class)
+# if you need shared data across replicas.
+dataVolume:
+  enabled: true
+  mountPath: /opt/arcanna/data
+  size: 5Gi
+  storageClassName: nfs
+
+logVolume:
+  size: 1Gi
+
+extraConfig:
+  enabled: true
+  name: hypervisor-config
+  mountPath: /opt/arcanna/config/hypervisor/hypervisor.config
+  subPath: hypervisor.config

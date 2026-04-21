@@ -1,0 +1,12 @@
+serviceName: agents-exposer
+componentType: agents_exposer
+port: 9888
+
+image:
+  repository: gcr.io/siscale-aiops/agents-component
+
+extraConfig:
+  enabled: true
+  name: agents-exposer-config
+  mountPath: /opt/arcanna/config/agents_exposer/agents_exposer.config
+  subPath: agents_exposer.config

@@ -1,0 +1,17 @@
+serviceName: exposer
+componentType: exposer
+port: 9666
+
+image:
+  repository: gcr.io/siscale-aiops/component-webservice
+
+service:
+  nodePort:
+    enabled: true
+    port: 31103
+
+extraConfig:
+  enabled: true
+  name: exposer-config
+  mountPath: /opt/arcanna/config/exposer/exposer.config
+  subPath: exposer.config

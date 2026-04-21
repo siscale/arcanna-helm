@@ -1,0 +1,23 @@
+# ─────────────────────────────────────────────────────────────────────
+# Generated from envs/_template/ by `make init-env ENV=baremetal-e2e`.
+# Edit freely — your changes stay on disk. `make init-env` is idempotent
+# and will not overwrite an existing env directory.
+# ─────────────────────────────────────────────────────────────────────
+
+# Elasticsearch — ECK uses <clusterName>-es-http / -es-elastic-user.
+esSecretName: aiops-e2e-es-elastic-user
+
+elasticsearch:
+  hosts: "aiops-e2e-es-http"
+
+config:
+  elasticsearch:
+    hosts: "aiops-e2e-es-http"
+  # No kibana.url by default — NodePort mode. Uncomment and set if you
+  # have DNS + ingress in front of Kibana.
+  # kibana:
+  #   url: "https://kibana.example.com"
+
+# Default storage class for log volumes (every service has one).
+logVolume:
+  storageClassName: sc-e2e

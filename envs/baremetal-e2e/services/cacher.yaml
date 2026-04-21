@@ -1,0 +1,12 @@
+serviceName: cacher
+componentType: cacher
+port: 9777
+
+image:
+  repository: gcr.io/siscale-aiops/component-webservice
+
+extraConfig:
+  enabled: true
+  name: cacher-config
+  mountPath: /opt/arcanna/config/cacher/cacher.config
+  subPath: cacher.config

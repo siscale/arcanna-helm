@@ -1,0 +1,11 @@
+name: aiops-e2e
+elasticsearchRef: aiops-e2e
+# publicBaseUrl omitted — NodePort default. Set if you front Kibana with ingress.
+
+resources:
+  requests:
+    memory: "512Mi"
+    cpu: "250m"
+  limits:
+    memory: "1Gi"
+    cpu: "1"

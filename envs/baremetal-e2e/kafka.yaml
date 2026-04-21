@@ -1,0 +1,14 @@
+kraft:
+  replicas: 1
+  dataVolumeCapacity: 1Gi
+  storageClassName: sc-e2e
+
+kafka:
+  replicas: 1
+  dataVolumeCapacity: 10Gi
+  storageClassName: sc-e2e
+  jvm: "-Xmx1G -Xms1G"
+  config:
+    defaultReplicationFactor: 1
+    minInsyncReplicas: 1
+    logRetentionHours: 4

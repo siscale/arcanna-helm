@@ -16,8 +16,9 @@ HELM_TIMEOUT         := 300s
 HELM_SPECIAL_TIMEOUT := 600s
 
 # NodePorts used when BACKEND_URL / MONITORING_URL are empty.
-REST_API_NODE_PORT   ?= 31301
-MONITORING_NODE_PORT ?= 31302
+REST_API_NODE_PORT           ?= 31301
+MONITORING_NODE_PORT         ?= 31302
+MONITORING_SHIPPER_NODE_PORT ?= 31312
 
 # Env bootstrap defaults (used by `make init-env` when .env doesn't set them).
 ES_CLUSTER_NAME    ?= aiops-$(ENV)
@@ -27,9 +28,10 @@ EXPOSER_NODE_PORT  ?= 31403
 
 # When URLs are empty, services must expose NodePorts for the
 # auto-resolved URLs (http://<node-ip>:<port>) to actually work.
-# These --set flags are merged onto the rest-api / monitoring helm calls.
+# Monitoring needs TWO NodePorts because it serves two container ports
+# (api 9801 + shipper 9802) — K8s requires a distinct NodePort per port.
 REST_API_NODEPORT_ARGS   = $(if $(BACKEND_URL),,--set service.type=NodePort --set service.nodePort.enabled=true --set service.nodePort.port=$(REST_API_NODE_PORT))
-MONITORING_NODEPORT_ARGS = $(if $(MONITORING_URL),,--set service.type=NodePort --set service.nodePort.enabled=true --set service.nodePort.port=$(MONITORING_NODE_PORT))
+MONITORING_NODEPORT_ARGS = $(if $(MONITORING_URL),,--set service.type=NodePort --set service.nodePort.api=$(MONITORING_NODE_PORT) --set service.nodePort.shipper=$(MONITORING_SHIPPER_NODE_PORT))
 
 # Infra secrets.
 # Left empty here on purpose — the create-secret-* targets auto-generate
@@ -245,6 +247,9 @@ create-secret-app: init-namespace
 			--from-literal=monitoring-api-key="$(MONITORING_API_KEY)" \
 			--from-literal=monitoring-secret="$(MONITORING_SECRET)"; \
 		echo "✅ arcanna-app-credentials created"; \
+		echo "   ⚠️  Save these values — they won't be shown again:"; \
+		kubectl get secret arcanna-app-credentials -n $(NAMESPACE) -o json \
+			| jq -r '.data | to_entries[] | "   \(.key): \(.value | @base64d)"'; \
 	fi
 
 create-secrets: create-secret-postgres create-secret-redis create-secret-gcr create-secret-app
@@ -653,7 +658,7 @@ status:
 #   destroy-app     — uninstall all helm releases. Keeps PVCs + secrets
 #                     so you can redeploy without losing data.
 #   destroy-data    — delete PVCs and installer-created secrets. Data loss.
-#   destroy-all     — the above.Clean slate.
+#   destroy-all     — the above + delete the namespace. Clean slate.
 #
 # All three require typing the namespace name to confirm.
 .PHONY: destroy-infra destroy-app destroy-data destroy-namespace destroy-all show-resources
@@ -711,7 +716,7 @@ destroy-all:
 	@echo "⚠️     • uninstall every helm release (app + infra)"
 	@echo "⚠️     • delete all PVCs (ES, Kafka, PG, Redis data — gone)"
 	@echo "⚠️     • delete all secrets (passwords will be regenerated next install)"
-	@echo "⚠️     • To delete the namespace itself use make destroy-namespace"
+	@echo "⚠️     • delete the namespace itself"
 	@echo "⚠️  ════════════════════════════════════════════════════════════"
 	@echo ""
 	@read -p "Type the namespace name to confirm: " c && [ "$$c" = "$(NAMESPACE)" ] || { echo "cancelled"; exit 1; }
@@ -728,6 +733,12 @@ destroy-all:
 	@echo "══════ Phase 3: remove configmaps + secrets ══════"
 	-kubectl delete configmap --all -n $(NAMESPACE) --ignore-not-found 2>/dev/null
 	-kubectl delete secret --all -n $(NAMESPACE) --ignore-not-found 2>/dev/null
+	@echo ""
+	@echo "══════ Phase 4: delete namespace ══════"
+	-kubectl delete namespace $(NAMESPACE) --timeout=$(HELM_TIMEOUT) --ignore-not-found
+	@echo ""
+	@echo "✅ $(NAMESPACE) destroyed completely."
+	@echo "   Run \`make deploy-all\` to start over from scratch."
 
 # Legacy alias — kept for backward compat
 destroy-infra: destroy-app
