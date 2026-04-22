@@ -50,6 +50,15 @@ RAG_API_KEY        ?= $(shell openssl rand -base64 24 2>/dev/null)
 MONITORING_API_KEY ?= $(shell openssl rand -base64 24 2>/dev/null)
 MONITORING_SECRET  ?= $(shell openssl rand -base64 24 2>/dev/null)
 
+# Admin user — created in ES security after migration-end.
+# Empty ADMIN_PASSWORD auto-generates one (printed once).
+ADMIN_USERNAME         ?= admin
+ADMIN_PASSWORD         ?=
+ADMIN_EMAIL            ?= contact@siscale.com
+ADMIN_FULL_NAME        ?= Admin
+FORCE_PASSWORD_CHANGE  ?= true
+FORCE_USER_CREATION    ?= false
+
 # Skip flags — set to true to skip pre-existing infra
 SKIP_ES    ?= false
 SKIP_KAFKA ?= false
@@ -189,9 +198,8 @@ create-secret-postgres: init-namespace
 			--from-literal=database="$$DB"; \
 		echo "✅ postgres-credentials created"; \
 		if [ -n "$$GENERATED" ]; then \
-			echo "   ⚠️  Auto-generated password — save it now, it won't be shown again:"; \
+			echo "   ⚠️  Auto-generated password:"; \
 			echo "     user:     $$USER"; \
-			echo "     password: $$PASS"; \
 			echo "     database: $$DB"; \
 		fi; \
 	fi
@@ -211,8 +219,7 @@ create-secret-redis: init-namespace
 			--from-literal=password="$$PASS"; \
 		echo "✅ redis-credentials created"; \
 		if [ -n "$$GENERATED" ]; then \
-			echo "   ⚠️  Auto-generated password — save it now, it won't be shown again:"; \
-			echo "     password: $$PASS"; \
+			echo "   ⚠️  Auto-generated password "; \
 		fi; \
 	fi
 
@@ -247,9 +254,8 @@ create-secret-app: init-namespace
 			--from-literal=monitoring-api-key="$(MONITORING_API_KEY)" \
 			--from-literal=monitoring-secret="$(MONITORING_SECRET)"; \
 		echo "✅ arcanna-app-credentials created"; \
-		echo "   ⚠️  Save these values — they won't be shown again:"; \
-		kubectl get secret arcanna-app-credentials -n $(NAMESPACE) -o json \
-			| jq -r '.data | to_entries[] | "   \(.key): \(.value | @base64d)"'; \
+		echo "   ⚠️  Actual values  won't be shown"; \
+		kubectl get secret arcanna-app-credentials -n $(NAMESPACE); \
 	fi
 
 create-secrets: create-secret-postgres create-secret-redis create-secret-gcr create-secret-app
@@ -533,11 +539,12 @@ deploy-platform:
 	@echo "──── deploying aiops-platform [$(ENV)] ────"
 	@BURL="$${BACKEND_URL:-$(BACKEND_URL)}"; \
 	MURL="$${MONITORING_URL:-$(MONITORING_URL)}"; \
-	if [ -z "$$BURL" ] || [ -z "$$MURL" ]; then \
+	PURL="$${PLATFORM_URL:-$(PLATFORM_URL)}"; \
+	if [ -z "$$BURL" ] || [ -z "$$MURL" ] || [ -z "$$PURL" ]; then \
 		NODE_IP=$$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}' 2>/dev/null); \
 		if [ -z "$$NODE_IP" ]; then \
-			echo "❌ BACKEND_URL/MONITORING_URL are empty and no node IP could be detected."; \
-			echo "   Either set the URLs in .env, or ensure kubectl can reach the cluster."; \
+			echo "❌ One or more URLs are empty and no node IP could be detected."; \
+			echo "   Either set URLs in .env, or ensure kubectl can reach the cluster."; \
 			exit 1; \
 		fi; \
 		if [ -z "$$BURL" ]; then \
@@ -552,9 +559,16 @@ deploy-platform:
 		else \
 			echo "  ℹ  MONITORING_URL = $$MURL  (from .env)"; \
 		fi; \
+		if [ -z "$$PURL" ]; then \
+			PURL="http://$$NODE_IP:$(PLATFORM_NODE_PORT)"; \
+			echo "  ℹ  PLATFORM_URL   = $$PURL  (auto: node IP + PLATFORM_NODE_PORT)"; \
+		else \
+			echo "  ℹ  PLATFORM_URL   = $$PURL  (from .env)"; \
+		fi; \
 	else \
 		echo "  ℹ  BACKEND_URL    = $$BURL  (from .env)"; \
 		echo "  ℹ  MONITORING_URL = $$MURL  (from .env)"; \
+		echo "  ℹ  PLATFORM_URL   = $$PURL  (from .env)"; \
 	fi; \
 	helm upgrade --install aiops-platform $(CHARTS_DIR)/aiops-platform \
 		-n $(NAMESPACE) \
@@ -566,7 +580,9 @@ deploy-platform:
 		--set monitoringUrl="$$MURL" \
 		--timeout $(HELM_TIMEOUT) \
 		--wait \
-		$(HELM_EXTRA_ARGS)
+		$(HELM_EXTRA_ARGS); \
+	echo ""; \
+	echo "  🌐 Arcanna frontend is available at: $$PURL"
 
 deploy-main-config:
 	$(call helm_upgrade,main-config)
@@ -607,6 +623,12 @@ deploy-all: init-env deploy-infra
 	@echo "══════ Phase 8: frontend ══════"
 	$(MAKE) deploy-platform ENV=$(ENV)
 	@echo ""
+	@echo "══════ Phase 9: admin user ══════"
+	$(MAKE) create-admin-user ENV=$(ENV) NAMESPACE=$(NAMESPACE)
+	@echo ""
+	@echo "══════ Phase 10: health check ══════"
+	$(MAKE) healthcheck ENV=$(ENV) NAMESPACE=$(NAMESPACE)
+	@echo ""
 	@echo "✅ Full deploy complete [$(ENV)]"
 
 # ── Upgrade shortcut (app services only, no infra) ──────────────────
@@ -633,6 +655,8 @@ upgrade-all:
 	$(MAKE) deploy-migration-end ENV=$(ENV) HELM_EXTRA_ARGS='--set image.tag=$(MIGRATION_TAG)'
 	$(MAKE) deploy-platform ENV=$(ENV)
 	@echo ""
+	$(MAKE) healthcheck ENV=$(ENV) NAMESPACE=$(NAMESPACE)
+	@echo ""
 	@echo "✅ Upgrade complete [$(ENV)] TAG=$(TAG)"
 
 # ── Rollback ────────────────────────────────────────────────────────
@@ -653,7 +677,122 @@ status:
 	@echo "PVCs:"
 	@kubectl get pvc -n $(NAMESPACE)
 
-# ── Teardown ────────────────────────────────────────────────────────
+# ── Admin user ──────────────────────────────────────────────────────
+# Creates an admin user in Elasticsearch security (arcanna_admin + superuser
+# roles). Reads ES credentials from the ECK-managed <cluster>-es-elastic-user
+# secret. Idempotent: checks if the user exists before creating.
+# Auto-called at the end of deploy-all.
+.PHONY: create-admin-user
+
+create-admin-user:
+	@echo ""
+	@echo "══════ Ensuring admin user exists ══════"
+	@ES_CLUSTER=$$(yq '.clusterName' $(ENVS_DIR)/elasticsearch.yaml 2>/dev/null); \
+	if [ -z "$$ES_CLUSTER" ] || [ "$$ES_CLUSTER" = "null" ]; then \
+		ES_CLUSTER="$(ES_CLUSTER_NAME)"; \
+	fi; \
+	ES_POD="$${ES_CLUSTER}-es-default-0"; \
+	echo "  cluster=$$ES_CLUSTER  pod=$$ES_POD"; \
+	ES_PASSWORD=$$(kubectl get secret "$${ES_CLUSTER}-es-elastic-user" -n $(NAMESPACE) -o jsonpath='{.data.elastic}' 2>/dev/null | base64 -d); \
+	if [ -z "$$ES_PASSWORD" ]; then \
+		echo "❌ Could not read Elasticsearch password — is ES deployed?"; \
+		exit 1; \
+	fi; \
+	if ! kubectl get pod "$$ES_POD" -n $(NAMESPACE) >/dev/null 2>&1; then \
+		echo "❌ ES pod $$ES_POD not found in namespace $(NAMESPACE)"; \
+		exit 1; \
+	fi; \
+	ADMIN_PASS="$${ADMIN_PASSWORD:-$(ADMIN_PASSWORD)}"; \
+	if [ -z "$$ADMIN_PASS" ]; then \
+		ADMIN_PASS=$$(openssl rand -base64 24 | tr -d '/+=' | head -c 20); \
+		GENERATED=1; \
+	fi; \
+	echo "  checking if user '$(ADMIN_USERNAME)' already exists..."; \
+	HTTP_CODE=$$(kubectl exec -n $(NAMESPACE) "$$ES_POD" -c elasticsearch -- \
+		curl -s -o /dev/null -w '%{http_code}' --insecure \
+		-u elastic:"$$ES_PASSWORD" \
+		https://localhost:9200/_security/user/$(ADMIN_USERNAME)); \
+	if [ "$$HTTP_CODE" = "200" ] && [ "$(FORCE_USER_CREATION)" != "true" ]; then \
+		echo "⏭  admin user '$(ADMIN_USERNAME)' already exists — skipping (use FORCE_USER_CREATION=true to override)"; \
+	else \
+		if [ "$$HTTP_CODE" = "200" ]; then \
+			echo "  user exists, but FORCE_USER_CREATION=true — recreating"; \
+		else \
+			echo "  user does not exist — creating"; \
+		fi; \
+		BODY=$$(printf '{"username":"%s","password":"%s","roles":["arcanna_admin","superuser"],"full_name":"%s","email":"%s","metadata":{"force_password_change":"%s","aiops":{"enabled":true}},"enabled":true}' \
+			"$(ADMIN_USERNAME)" "$$ADMIN_PASS" "$(ADMIN_FULL_NAME)" "$(ADMIN_EMAIL)" "$(FORCE_PASSWORD_CHANGE)"); \
+		RESP=$$(kubectl exec -n $(NAMESPACE) "$$ES_POD" -c elasticsearch -- \
+			curl -s -o /dev/null -w '%{http_code}' --insecure \
+			-H 'Content-Type: application/json' \
+			-X POST \
+			--data "$$BODY" \
+			-u elastic:"$$ES_PASSWORD" \
+			https://localhost:9200/_security/user/$(ADMIN_USERNAME)); \
+		if [ "$$RESP" = "200" ] || [ "$$RESP" = "201" ]; then \
+			echo "✅ admin user '$(ADMIN_USERNAME)' created (HTTP $$RESP)"; \
+			if [ -n "$$GENERATED" ]; then \
+				echo ""; \
+				echo "   ⚠️  Auto-generated password — save it now, it won't be shown again:"; \
+				echo "        username: $(ADMIN_USERNAME)"; \
+				echo "        password: $$ADMIN_PASS"; \
+				echo "        elastic password: $$ES_PASSWORD"; \
+				if [ "$(FORCE_PASSWORD_CHANGE)" = "true" ]; then \
+					echo "        (forced to change on first login)"; \
+				fi; \
+				echo ""; \
+			fi; \
+		else \
+			echo "❌ failed to create admin user (HTTP $$RESP)"; \
+			exit 1; \
+		fi; \
+	fi
+
+# ── Health check ────────────────────────────────────────────────────
+# Sweeps all helm releases, pods, and NodePorts in the namespace.
+# Fails if any helm release is not "deployed" or any pod isn't Ready.
+# Auto-called at the end of deploy-all.
+.PHONY: healthcheck
+
+healthcheck:
+	@echo ""
+	@echo "══════ Health check [$(NAMESPACE)] ══════"
+	@echo ""
+	@echo "── Helm releases ──"
+	@helm list -n $(NAMESPACE) -o table
+	@UNHEALTHY=$$(helm list -n $(NAMESPACE) -o json 2>/dev/null | jq -r '.[] | select(.status != "deployed") | .name' 2>/dev/null); \
+	if [ -n "$$UNHEALTHY" ]; then \
+		echo ""; \
+		echo "⚠️  The following releases are not in 'deployed' state:"; \
+		echo "$$UNHEALTHY" | sed 's/^/   - /'; \
+	fi
+	@echo ""
+	@echo "── Pods ──"
+	@kubectl get pods -n $(NAMESPACE) --no-headers 2>/dev/null | awk '{ \
+		split($$2, a, "/"); \
+		status = $$3; \
+		ready = (a[1] == a[2] && (status == "Running" || status == "Completed")); \
+		printf "  %-50s %-10s %s %s\n", $$1, status, $$2, (ready ? "✅" : "❌"); \
+	}'
+	@NOT_READY=$$(kubectl get pods -n $(NAMESPACE) -o json 2>/dev/null | jq -r '.items[] | select( (.status.phase != "Running" and .status.phase != "Succeeded") or ([ .status.containerStatuses[]? | select(.ready == false) ] | length > 0) ) | select(.status.phase != "Succeeded") | .metadata.name' 2>/dev/null); \
+	if [ -n "$$NOT_READY" ]; then \
+		echo ""; \
+		echo "⚠️  Pods not fully ready:"; \
+		echo "$$NOT_READY" | sed 's/^/   - /'; \
+	fi
+	@echo ""
+	@echo "── NodePort access ──"
+	@NODE_IP=$$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}' 2>/dev/null); \
+	kubectl get svc -n $(NAMESPACE) -o json 2>/dev/null | jq -r '.items[] | select(.spec.type == "NodePort") | .metadata.name as $$n | .spec.ports[] | "  \($$n)/\(.name):\thttp://'$$NODE_IP':\(.nodePort)"' 2>/dev/null | column -t -s $$'\t'
+	@echo ""
+	@if [ -n "$$NOT_READY" ] || [ -n "$$UNHEALTHY" ]; then \
+		echo "⚠️  Health check found issues — review above."; \
+		exit 1; \
+	else \
+		echo "✅ All components are healthy."; \
+	fi
+
+
 # Three levels, least to most destructive:
 #   destroy-app     — uninstall all helm releases. Keeps PVCs + secrets
 #                     so you can redeploy without losing data.
@@ -716,7 +855,7 @@ destroy-all:
 	@echo "⚠️     • uninstall every helm release (app + infra)"
 	@echo "⚠️     • delete all PVCs (ES, Kafka, PG, Redis data — gone)"
 	@echo "⚠️     • delete all secrets (passwords will be regenerated next install)"
-	@echo "⚠️     • delete the namespace itself"
+	@echo "⚠️     • to delete the namespace itself run  make destroy-namespace"
 	@echo "⚠️  ════════════════════════════════════════════════════════════"
 	@echo ""
 	@read -p "Type the namespace name to confirm: " c && [ "$$c" = "$(NAMESPACE)" ] || { echo "cancelled"; exit 1; }
@@ -734,10 +873,6 @@ destroy-all:
 	-kubectl delete configmap --all -n $(NAMESPACE) --ignore-not-found 2>/dev/null
 	-kubectl delete secret --all -n $(NAMESPACE) --ignore-not-found 2>/dev/null
 	@echo ""
-	@echo "══════ Phase 4: delete namespace ══════"
-	-kubectl delete namespace $(NAMESPACE) --timeout=$(HELM_TIMEOUT) --ignore-not-found
-	@echo ""
-	@echo "✅ $(NAMESPACE) destroyed completely."
 	@echo "   Run \`make deploy-all\` to start over from scratch."
 
 # Legacy alias — kept for backward compat

@@ -3,3 +3,11 @@ image:
 
 # service.type / nodePort are flipped to NodePort at deploy time by the
 # Makefile when BACKEND_URL is empty in .env.
+
+# Samples init container runs aiops_common/samples/samples-deployment.py
+# at pod startup to seed the env. Profiles come from aiops_common/samples/*
+# Chart default is "dev" — override to "prod" here so every new env
+# bootstrapped from this template gets production sample data.
+samples:
+  enabled: true
+  profile: "prod"

@@ -5,3 +5,7 @@ service:
   type: ClusterIP
   nodePort:
     enabled: false
+
+samples:
+  enabled: true
+  profile: "dev"
