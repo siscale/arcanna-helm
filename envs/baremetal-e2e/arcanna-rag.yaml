@@ -1,0 +1,6 @@
+# Only deployed with: make deploy-arcanna-rag ENV=baremetal-e2e
+storagePvc:
+  storageClassName: sc-e2e
+
+logPvc:
+  storageClassName: sc-e2e

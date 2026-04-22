@@ -7,23 +7,22 @@ image:
 
 resources:
   requests:
-    cpu: "150m"
+    cpu: "100m"
     memory: "64Mi"
   limits:
-    cpu: "2000m"
-    memory: "2048Mi"
+    cpu: "1"
+    memory: "1Gi"
 
-# Hypervisor keeps shared state on a data volume — often on a different
-# storage class than logs (e.g. NFS for RWX, while logs stay on local LVM).
-# Change storageClassName here to switch to NFS or another backend.
+# Hypervisor data volume — switch storageClassName to NFS (or any RWX class)
+# if you need shared data across replicas.
 dataVolume:
   enabled: true
   mountPath: /opt/arcanna/data
-  size: 10Gi
-  storageClassName: sc-stage
+  size: 5Gi
+  storageClassName: nfs
 
 logVolume:
-  size: 2Gi
+  size: 1Gi
 
 extraConfig:
   enabled: true

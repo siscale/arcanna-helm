@@ -12,10 +12,10 @@ extraEnv:
 resources:
   requests:
     cpu: "100m"
-    memory: "2048Mi"
+    memory: "1Gi"
   limits:
-    cpu: "2000m"
-    memory: "4096Mi"
+    cpu: "1"
+    memory: "2Gi"
 
 extraConfig:
   enabled: true

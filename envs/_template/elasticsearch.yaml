@@ -1,0 +1,18 @@
+clusterName: @ES_CLUSTER_NAME@
+
+nodeSets:
+  - name: default
+    count: 1
+    config:
+      node.store.allow_mmap: false
+    javaOpts: "-Xms2g -Xmx2g"
+    resources:
+      requests:
+        memory: "3Gi"
+        cpu: "500m"
+      limits:
+        memory: "4Gi"
+        cpu: "2"
+    storage:
+      size: 50Gi
+      storageClassName: @STORAGE_CLASS@

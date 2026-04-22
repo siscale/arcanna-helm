@@ -1,6 +1,6 @@
-serviceName: retrainer
-componentType: retrainer
-port: 5306
+serviceName: clustering
+componentType: clustering
+port: 8989
 
 image:
   repository: gcr.io/siscale-aiops/component-worker
@@ -11,4 +11,4 @@ resources:
     memory: "64Mi"
   limits:
     cpu: "2000m"
-    memory: "4096Mi"
+    memory: "2048Mi"

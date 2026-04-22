@@ -1,16 +1,7 @@
 image:
   repository: gcr.io/siscale-aiops/aiops-rest-api-release
-secrets:
-  elasticsearch:
-    secretName: aiops-staging-es-elastic-user
 
 service:
   type: ClusterIP
   nodePort:
     enabled: false
-
-config:
-  elasticsearch:
-    hosts: "aiops-staging-es-http"
-  kibana:
-    url: "https://stage-kb.arcanna.ai"

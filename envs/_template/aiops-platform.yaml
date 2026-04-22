@@ -1,0 +1,7 @@
+# backendUrl / monitoringUrl resolved at deploy time from .env
+# (or auto-built from NodePort + first node IP if empty).
+
+service:
+  nodePort:
+    enabled: true
+    port: @PLATFORM_NODE_PORT@

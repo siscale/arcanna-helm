@@ -1,5 +1,6 @@
-backendUrl: "https://stage-rest.arcanna.ai"
-monitoringUrl: "https://stage-monitoring.arcanna.ai"
+# backendUrl / monitoringUrl are resolved by the Makefile at deploy time,
+# either from .env or (if empty) auto-built from NodePort + first node IP.
+# Do not hardcode them here — .env is the one place to set them.
 
 service:
   nodePort:

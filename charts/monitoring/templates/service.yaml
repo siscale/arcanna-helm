@@ -5,13 +5,19 @@ metadata:
   labels:
     {{- include "monitoring.labels" . | nindent 4 }}
 spec:
-  type: ClusterIP
+  type: {{ .Values.service.type | default "ClusterIP" }}
   ports:
     - name: api-port
       port: {{ .Values.api.port }}
       targetPort: {{ .Values.api.port }}
+      {{- if and (eq .Values.service.type "NodePort") .Values.service.nodePort.api }}
+      nodePort: {{ .Values.service.nodePort.api }}
+      {{- end }}
     - name: index-logs-port
       port: {{ .Values.shipper.port }}
       targetPort: {{ .Values.shipper.port }}
+      {{- if and (eq .Values.service.type "NodePort") .Values.service.nodePort.shipper }}
+      nodePort: {{ .Values.service.nodePort.shipper }}
+      {{- end }}
   selector:
     {{- include "monitoring.selectorLabels" . | nindent 4 }}

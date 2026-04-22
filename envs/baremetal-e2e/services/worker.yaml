@@ -1,17 +1,20 @@
-serviceName: buckets-updater
-componentType: buckets_updater
-port: 5305
+serviceName: worker
+componentType: worker
+port: 6001
 
 image:
   repository: gcr.io/siscale-aiops/component-worker
 
+workloadType: StatefulSet
+replicas: 1
+
 resources:
   requests:
     cpu: "100m"
-    memory: "2Gi"
+    memory: "512Mi"
   limits:
     cpu: "2000m"
-    memory: "6Gi"
+    memory: "3Gi"
 
 probes:
   readiness:
@@ -22,3 +25,6 @@ probes:
     initialDelaySeconds: 45
     periodSeconds: 20
     timeoutSeconds: 5
+
+logVolume:
+  size: 256Mi

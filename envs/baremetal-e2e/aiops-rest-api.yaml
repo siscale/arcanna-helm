@@ -1,0 +1,5 @@
+image:
+  repository: gcr.io/siscale-aiops/aiops-rest-api-release
+
+# service.type / nodePort are flipped to NodePort at deploy time by the
+# Makefile when BACKEND_URL is empty in .env.

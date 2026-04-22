@@ -1,5 +1,2 @@
-esSecretName: aiops-staging-es-elastic-user
-
-config:
-  elasticsearch:
-    hosts: "aiops-staging-es-http"
+# All shared values come from _common.yaml.
+# Chart-specific overrides only go here.

@@ -3,8 +3,3 @@ image:
 
 logVolume:
   size: 20Gi
-  storageClassName: sc-stage
-
-
-elasticsearch:
-  hosts: "aiops-staging-es-http"

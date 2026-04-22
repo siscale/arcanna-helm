@@ -8,7 +8,7 @@ image:
 service:
   nodePort:
     enabled: true
-    port: 32566
+    port: @EXPOSER_NODE_PORT@
 
 extraConfig:
   enabled: true

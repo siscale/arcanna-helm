@@ -1,8 +1,6 @@
-esSecretName: aiops-staging-es-elastic-user
-
-elasticsearch:
-  hosts: "aiops-staging-es-http"
-
+# arcanna-rag has its own PVCs for vector store + logs.
+# These are arcanna-rag-specific, not shared defaults — override here
+# if you need a different storage class for the RAG data.
 storagePvc:
   storageClassName: sc-stage
 
