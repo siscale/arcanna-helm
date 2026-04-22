@@ -18,7 +18,6 @@ HELM_SPECIAL_TIMEOUT := 600s
 # NodePorts used when BACKEND_URL / MONITORING_URL are empty.
 REST_API_NODE_PORT           ?= 31301
 MONITORING_NODE_PORT         ?= 31302
-MONITORING_SHIPPER_NODE_PORT ?= 31312
 
 # Env bootstrap defaults (used by `make init-env` when .env doesn't set them).
 ES_CLUSTER_NAME    ?= aiops-$(ENV)
@@ -28,10 +27,11 @@ EXPOSER_NODE_PORT  ?= 31403
 
 # When URLs are empty, services must expose NodePorts for the
 # auto-resolved URLs (http://<node-ip>:<port>) to actually work.
-# Monitoring needs TWO NodePorts because it serves two container ports
-# (api 9801 + shipper 9802) — K8s requires a distinct NodePort per port.
+# Monitoring only exposes the api port (9801) as NodePort. The shipper
+# port (9802) is internal — used by other pods to ship logs to monitoring,
+# not intended for external access.
 REST_API_NODEPORT_ARGS   = $(if $(BACKEND_URL),,--set service.type=NodePort --set service.nodePort.enabled=true --set service.nodePort.port=$(REST_API_NODE_PORT))
-MONITORING_NODEPORT_ARGS = $(if $(MONITORING_URL),,--set service.type=NodePort --set service.nodePort.api=$(MONITORING_NODE_PORT) --set service.nodePort.shipper=$(MONITORING_SHIPPER_NODE_PORT))
+MONITORING_NODEPORT_ARGS = $(if $(MONITORING_URL),,--set service.type=NodePort --set service.nodePort.api=$(MONITORING_NODE_PORT))
 
 # Infra secrets.
 # Left empty here on purpose — the create-secret-* targets auto-generate
@@ -219,7 +219,10 @@ create-secret-redis: init-namespace
 			--from-literal=password="$$PASS"; \
 		echo "✅ redis-credentials created"; \
 		if [ -n "$$GENERATED" ]; then \
-			echo "   ⚠️  Auto-generated password "; \
+			echo "   ⚠️  Password auto-generated and stored in the secret."; \
+			echo "       Retrieve with:"; \
+			echo "         kubectl get secret redis-credentials -n $(NAMESPACE) \\"; \
+			echo "           -o jsonpath='{.data.password}' | base64 -d"; \
 		fi; \
 	fi
 
@@ -253,9 +256,11 @@ create-secret-app: init-namespace
 			--from-literal=rag-api-key="$(RAG_API_KEY)" \
 			--from-literal=monitoring-api-key="$(MONITORING_API_KEY)" \
 			--from-literal=monitoring-secret="$(MONITORING_SECRET)"; \
-		echo "✅ arcanna-app-credentials created"; \
-		echo "   ⚠️  Actual values  won't be shown"; \
-		kubectl get secret arcanna-app-credentials -n $(NAMESPACE); \
+		echo "✅ arcanna-app-credentials created (5 tokens stored in secret)"; \
+		echo "   Retrieve individual values with:"; \
+		echo "     kubectl get secret arcanna-app-credentials -n $(NAMESPACE) \\"; \
+		echo "       -o jsonpath='{.data.<key>}' | base64 -d"; \
+		echo "   Keys: seal-token, api-token, rag-api-key, monitoring-api-key, monitoring-secret"; \
 	fi
 
 create-secrets: create-secret-postgres create-secret-redis create-secret-gcr create-secret-app
@@ -437,9 +442,10 @@ deploy-rest-api:
 			--wait \
 			$(HELM_EXTRA_ARGS); \
 		echo "  ✅ arcanna-app-credentials created with auto-generated tokens"; \
-		echo "  ⚠️  Save these values:"; \
-		kubectl get secret arcanna-app-credentials -n $(NAMESPACE) -o json \
-			| jq -r '.data | to_entries[] | "     \(.key): \(.value | @base64d)"' 2>/dev/null || true; \
+		echo "  ℹ  Values stored in the secret (not printed for security)."; \
+		echo "     Retrieve individual keys:"; \
+		echo "       kubectl get secret arcanna-app-credentials -n $(NAMESPACE) \\"; \
+		echo "         -o jsonpath='{.data.<key>}' | base64 -d"; \
 	fi
 
 deploy-core-framework:
@@ -705,7 +711,7 @@ create-admin-user:
 	ADMIN_PASS="$${ADMIN_PASSWORD:-$(ADMIN_PASSWORD)}"; \
 	if [ -z "$$ADMIN_PASS" ]; then \
 		ADMIN_PASS=$$(openssl rand -base64 24 | tr -d '/+=' | head -c 20); \
-		GENERATED=1; \
+		ADMIN_GENERATED=1; \
 	fi; \
 	echo "  checking if user '$(ADMIN_USERNAME)' already exists..."; \
 	HTTP_CODE=$$(kubectl exec -n $(NAMESPACE) "$$ES_POD" -c elasticsearch -- \
@@ -731,17 +737,24 @@ create-admin-user:
 			https://localhost:9200/_security/user/$(ADMIN_USERNAME)); \
 		if [ "$$RESP" = "200" ] || [ "$$RESP" = "201" ]; then \
 			echo "✅ admin user '$(ADMIN_USERNAME)' created (HTTP $$RESP)"; \
-			if [ -n "$$GENERATED" ]; then \
-				echo ""; \
-				echo "   ⚠️  Auto-generated password — save it now, it won't be shown again:"; \
-				echo "        username: $(ADMIN_USERNAME)"; \
-				echo "        password: $$ADMIN_PASS"; \
-				echo "        elastic password: $$ES_PASSWORD"; \
-				if [ "$(FORCE_PASSWORD_CHANGE)" = "true" ]; then \
-					echo "        (forced to change on first login)"; \
-				fi; \
-				echo ""; \
+			echo ""; \
+			echo "   ═════════════════════════════════════════════════════════════"; \
+			echo "   🔐 SAVE THESE CREDENTIALS — SHOWN ONCE, NOT LOGGED ANYWHERE ELSE"; \
+			echo "   ═════════════════════════════════════════════════════════════"; \
+			echo "     arcanna admin: $(ADMIN_USERNAME) / $$ADMIN_PASS"; \
+			if [ -z "$$ADMIN_GENERATED" ]; then \
+				echo "                    (password you set in .env)"; \
+			else \
+				echo "                    (auto-generated — copy it now)"; \
 			fi; \
+			echo "     elastic user:  elastic / $$ES_PASSWORD"; \
+			echo "                    (ECK-managed, in $${ES_CLUSTER}-es-elastic-user)"; \
+			if [ "$(FORCE_PASSWORD_CHANGE)" = "true" ]; then \
+				echo ""; \
+				echo "   Note: arcanna admin will be prompted to change password on first login."; \
+			fi; \
+			echo "   ═════════════════════════════════════════════════════════════"; \
+			echo ""; \
 		else \
 			echo "❌ failed to create admin user (HTTP $$RESP)"; \
 			exit 1; \
@@ -931,9 +944,10 @@ help:
 	@echo "  MIGRATION_TAG=<sha>"
 	@echo ""
 	@echo "Examples:"
-	@echo "  # Fresh cluster"
-	@echo "  export POSTGRES_USER=arcanna POSTGRES_PASSWORD=s3cret POSTGRES_DB=arcanna"
-	@echo "  export REDIS_PASSWORD=r3dis GCR_JSON_KEY_FILE=~/sa-key.json"
+	@echo "  # Fresh cluster — put credentials in .env (or export):"
+	@echo "  #   POSTGRES_PASSWORD / REDIS_PASSWORD / ADMIN_PASSWORD are optional"
+	@echo "  #   (auto-generated if unset). GCR_JSON_KEY_FILE is required."
+	@echo "  export GCR_JSON_KEY_FILE=~/sa-key.json"
 	@echo "  make deploy-all ENV=baremetal-stage NAMESPACE=arcanna-stage TAG=abc123"
 	@echo ""
 	@echo "  # Upgrade all services (same tag)"
