@@ -32,17 +32,6 @@ shipper:
       memory: "8092Mi"
       ephemeral-storage: "2Gi"
 
-
-# ── Service exposure ─────────────────────────────────────────────────
-# Defaults to ClusterIP. Makefile auto-flips to NodePort when
-# MONITORING_URL is empty in .env (see MONITORING_NODEPORT_ARGS).
-# Monitoring exposes two ports (api + shipper); NodePort needs both.
-service:
-  type: ClusterIP
-  nodePort:
-    api: 31402      # only used when service.type == NodePort
-    shipper: 31412
-
 # ── Log volume ───────────────────────────────────────────────────────
 logVolume:
   size: 20Gi
@@ -77,3 +66,13 @@ apiConfig: |-
 shipperConfig: |-
   # monitoring_shipper.config
   # Override per environment
+
+# ── Service exposure ─────────────────────────────────────────────────
+# Defaults to ClusterIP. Makefile auto-flips to NodePort when
+# MONITORING_URL is empty in .env (see MONITORING_NODEPORT_ARGS).
+# Monitoring exposes two ports (api + shipper); NodePort needs both.
+service:
+  type: ClusterIP
+  nodePort:
+    api: 31402      # only used when service.type == NodePort
+    shipper: 31412
