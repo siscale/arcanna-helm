@@ -380,7 +380,7 @@ deploy-infra: init-namespace create-secrets deploy-elasticsearch deploy-kafka de
 
 # Migration helper — Jobs are immutable, so uninstall old release before installing new
 define helm_migration
-	@echo "──── migration $(1) [$(ENV)] ────"
+	@echo "──── migration $(1) [$(ENV)] tag=$(MIGRATION_TAG) ────"
 	-helm uninstall migration-$(1) -n $(NAMESPACE) 2>/dev/null
 	@sleep 2
 	helm install migration-$(1) $(CHARTS_DIR)/migration \
@@ -388,6 +388,7 @@ define helm_migration
 		-f $(CHARTS_DIR)/migration/values.yaml \
 		$(if $(wildcard $(ENVS_DIR)/_common.yaml),-f $(ENVS_DIR)/_common.yaml) \
 		$(if $(wildcard $(ENVS_DIR)/migration.yaml),-f $(ENVS_DIR)/migration.yaml) \
+		--set image.tag=$(MIGRATION_TAG) \
 		--set phase=$(1) \
 		--set extraArgs=$(2) \
 		$(HELM_EXTRA_ARGS)
