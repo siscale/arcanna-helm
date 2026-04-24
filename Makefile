@@ -772,10 +772,12 @@ healthcheck:
 	@kubectl get pods -n $(NAMESPACE) --no-headers 2>/dev/null | awk '{ \
 		split($$2, a, "/"); \
 		status = $$3; \
-		ready = (a[1] == a[2] && (status == "Running" || status == "Completed")); \
-		printf "  %-50s %-10s %s %s\n", $$1, status, $$2, (ready ? "✅" : "❌"); \
+		ok = 0; \
+		if (status == "Running"   && a[1] == a[2]) ok = 1; \
+		if (status == "Completed" || status == "Succeeded") ok = 1; \
+		printf "  %-50s %-10s %s %s\n", $$1, status, $$2, (ok ? "✅" : "❌"); \
 	}'
-	@NOT_READY=$$(kubectl get pods -n $(NAMESPACE) -o json 2>/dev/null | jq -r '.items[] | select( (.status.phase != "Running" and .status.phase != "Succeeded") or ([ .status.containerStatuses[]? | select(.ready == false) ] | length > 0) ) | select(.status.phase != "Succeeded") | .metadata.name' 2>/dev/null); \
+	@NOT_READY=$$(kubectl get pods -n $(NAMESPACE) -o json 2>/dev/null | jq -r '.items[] | select( .status.phase != "Succeeded" and ( .status.phase != "Running" or ([ .status.containerStatuses[]? | select(.ready == false) ] | length > 0) ) ) | .metadata.name' 2>/dev/null); \
 	if [ -n "$$NOT_READY" ]; then \
 		echo ""; \
 		echo "⚠️  Pods not fully ready:"; \
@@ -784,7 +786,7 @@ healthcheck:
 	@echo ""
 	@echo "── NodePort access ──"
 	@NODE_IP=$$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}' 2>/dev/null); \
-	kubectl get svc -n $(NAMESPACE) -o json 2>/dev/null | jq -r '.items[] | select(.spec.type == "NodePort") | .metadata.name as $$n | .spec.ports[] | "  \($$n)/\(.name):\thttp://'$$NODE_IP':\(.nodePort)"' 2>/dev/null | column -t -s $$'\t'
+	kubectl get svc -n $(NAMESPACE) -o json 2>/dev/null | jq -r --arg ip "$$NODE_IP" '.items[] | select(.spec.type == "NodePort") | .metadata.name as $$n | .spec.ports[] | "  \($$n)/\(.name):\thttp://\($$ip):\(.nodePort)"' 2>/dev/null
 	@echo ""
 	@if [ -n "$$NOT_READY" ] || [ -n "$$UNHEALTHY" ]; then \
 		echo "⚠️  Health check found issues — review above."; \
