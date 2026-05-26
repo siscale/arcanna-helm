@@ -690,6 +690,72 @@ status:
 # Auto-called at the end of deploy-all.
 .PHONY: create-admin-user
 
+deploy-admin-user:
+	@echo ""
+	@echo "══════ Ensuring admin user exists ══════"
+	@# Chart reuses the aiops-rest-api image. Pass REST_API_TAG so the Job
+	@# uses the same version as the running rest-api pod. ES connection details
+	@# (esSecretName) come from envs/<env>/admin-user.yaml.
+	@#
+	@# Password resolution (highest to lowest precedence):
+	@#   1. ADMIN_PASSWORD from .env or CLI — Makefile passes via --set, wins over env file
+	@#   2. admin.password in envs/<env>/admin-user.yaml — Makefile passes no --set, env file wins
+	@#   3. Both blank — Makefile generates one and passes via --set
+	@PASS_FROM_ENV="$${ADMIN_PASSWORD:-$(ADMIN_PASSWORD)}"; \
+	GENERATED=""; \
+	SET_PASS_ARG=""; \
+	if [ -n "$$PASS_FROM_ENV" ]; then \
+		SET_PASS_ARG="--set admin.password=$$PASS_FROM_ENV"; \
+	else \
+		PASS_FROM_FILE=""; \
+		if [ -f "$(ENVS_DIR)/admin-user.yaml" ]; then \
+			PASS_FROM_FILE=$$(yq '.admin.password // ""' "$(ENVS_DIR)/admin-user.yaml" 2>/dev/null); \
+		fi; \
+		if [ -z "$$PASS_FROM_FILE" ] || [ "$$PASS_FROM_FILE" = "null" ]; then \
+			GEN=$$(openssl rand -base64 24 | tr -d '/+=' | head -c 20); \
+			SET_PASS_ARG="--set admin.password=$$GEN"; \
+			GENERATED=1; \
+			echo "  ℹ  ADMIN_PASSWORD blank in .env AND in env file — auto-generating"; \
+		fi; \
+	fi; \
+	helm upgrade --install arcanna-admin-user $(CHARTS_DIR)/admin-user \
+		-n $(NAMESPACE) \
+		-f $(CHARTS_DIR)/admin-user/values.yaml \
+		$(if $(wildcard $(ENVS_DIR)/_common.yaml),-f $(ENVS_DIR)/_common.yaml) \
+		$(if $(wildcard $(ENVS_DIR)/admin-user.yaml),-f $(ENVS_DIR)/admin-user.yaml) \
+		--set image.tag="$(REST_API_TAG)" \
+		--set admin.username="$(ADMIN_USERNAME)" \
+		--set admin.email="$(ADMIN_EMAIL)" \
+		--set admin.fullName="$(ADMIN_FULL_NAME)" \
+		--set forcePasswordChange="$(FORCE_PASSWORD_CHANGE)" \
+		--set force.create="$(FORCE_USER_CREATION)" \
+		$$SET_PASS_ARG \
+		--timeout 180s --wait \
+		$(HELM_EXTRA_ARGS); \
+	echo ""; \
+	echo "── retrieving credentials from Job logs ──"; \
+	JOB=$$(kubectl get jobs -n $(NAMESPACE) -l app.kubernetes.io/name=admin-user \
+	        --sort-by=.metadata.creationTimestamp \
+	        -o jsonpath='{.items[-1:].metadata.name}' 2>/dev/null); \
+	if [ -z "$$JOB" ]; then \
+		echo "  ⚠  no Job found — check 'kubectl get jobs -n $(NAMESPACE)'"; \
+		exit 0; \
+	fi; \
+	echo "  (from job/$$JOB)"; \
+	echo "  ⏳ waiting for Job to complete..."; \
+	kubectl wait --for=condition=complete --timeout=120s \
+	  job/$$JOB -n $(NAMESPACE) 2>/dev/null || \
+	  kubectl wait --for=condition=failed --timeout=5s \
+	  job/$$JOB -n $(NAMESPACE) 2>/dev/null || true; \
+	echo ""; \
+	kubectl logs job/$$JOB -n $(NAMESPACE); \
+	if [ -n "$$GENERATED" ]; then \
+		echo ""; \
+		echo "  ⚠  password was AUTO-GENERATED — copy it from the banner above before"; \
+		echo "     this terminal session ends. It is not stored anywhere else."; \
+	fi
+
+
 create-admin-user:
 	@echo ""
 	@echo "══════ Ensuring admin user exists ══════"
