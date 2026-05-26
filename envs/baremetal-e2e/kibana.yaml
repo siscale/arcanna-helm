@@ -9,3 +9,12 @@ resources:
   limits:
     memory: "1Gi"
     cpu: "1"
+http:
+  service:
+    spec:
+      type: NodePort
+      ports:
+        - name: https
+          port: 5601
+          targetPort: 5601
+          nodePort: 31106

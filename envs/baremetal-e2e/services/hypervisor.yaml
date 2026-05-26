@@ -4,14 +4,18 @@ port: 8000
 
 image:
   repository: gcr.io/siscale-aiops/component-webservice
-
 resources:
   requests:
-    cpu: "100m"
-    memory: "64Mi"
-  limits:
-    cpu: "1"
+    cpu: "500m"
     memory: "1Gi"
+  limits:
+    cpu: "6"          # or 12 for double
+    memory: "12Gi"    # or 24Gi for double
+service:
+  type: NodePort
+  nodePort:
+    enabled: true
+    port: 31108
 
 # Hypervisor data volume — switch storageClassName to NFS (or any RWX class)
 # if you need shared data across replicas.
@@ -20,7 +24,8 @@ dataVolume:
   mountPath: /opt/arcanna/data
   size: 5Gi
   storageClassName: nfs
-
+  seed:
+    enabled: true
 logVolume:
   size: 1Gi
 
