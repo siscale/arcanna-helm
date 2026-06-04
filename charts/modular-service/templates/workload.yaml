@@ -36,6 +36,61 @@ spec:
             - name: monitoring-log-volume
               mountPath: /arcanna-log
         {{- end }}
+        {{- /*
+          Seed data PVC from the image on first install (hypervisor only).
+          On a fresh PVC the mount masks the image's pre-baked
+          /opt/arcanna/data (ML models, sample configs). This init runs with
+          the same image, copies /opt/arcanna/data into the PVC if empty,
+          then exits. Subsequent deploys see a populated PVC and skip.
+          Enabled per-service: set dataVolume.seed.enabled=true in the
+          service's env file (currently only hypervisor).
+        */ -}}
+        {{- $seedEnabled := false }}
+        {{- if and .Values.dataVolume.enabled (hasKey .Values.dataVolume "seed") }}
+          {{- if hasKey .Values.dataVolume.seed "enabled" }}
+            {{- $seedEnabled = .Values.dataVolume.seed.enabled }}
+          {{- end }}
+        {{- end }}
+        {{- if $seedEnabled }}
+        - name: seed-data
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - sh
+            - -c
+            - |
+              set -eu
+              SRC="{{ .Values.dataVolume.seed.sourcePath | default .Values.dataVolume.mountPath }}"
+              DST="/seed-target"
+
+              echo "[seed-data] source=${SRC}  target=${DST}"
+
+              if [ ! -d "${SRC}" ]; then
+                echo "[seed-data] source path does not exist in image — nothing to seed"
+                exit 0
+              fi
+
+              if [ -n "$(ls -A "${DST}" 2>/dev/null)" ]; then
+                echo "[seed-data] target already populated — skipping (idempotent)"
+                ls -la "${DST}" | head -10
+                exit 0
+              fi
+
+              echo "[seed-data] copying ${SRC}/ -> ${DST}/ ..."
+              cp -a "${SRC}/." "${DST}/"
+              echo "[seed-data] done. Contents:"
+              ls -la "${DST}" | head -20
+          volumeMounts:
+            - name: data-volume
+              mountPath: /seed-target
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+        {{- end }}
       containers:
         - name: {{ .Values.serviceName }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"

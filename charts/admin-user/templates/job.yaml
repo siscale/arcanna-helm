@@ -1,0 +1,144 @@
+{{- if and (not .Values.admin.password) (not .Values.admin.existingSecret.name) -}}
+{{- fail "admin.password or admin.existingSecret.name must be set" -}}
+{{- end -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-{{ .Release.Revision | default 1 }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "admin-user.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  ttlSecondsAfterFinished: {{ .Values.job.ttlSecondsAfterFinished }}
+  backoffLimit: {{ .Values.job.backoffLimit }}
+  activeDeadlineSeconds: {{ .Values.job.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+        {{- include "admin-user.selectorLabels" . | nindent 8 }}
+    spec:
+      restartPolicy: {{ .Values.job.restartPolicy }}
+      automountServiceAccountToken: false
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: create-admin
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            # ── DATA_WAREHOUSE_* — same shape as the rest-api pod uses ──
+            {{- include "admin-user.esEnvVars" . | nindent 12 }}
+            # ── admin user details ──
+            - name: ADMIN_USERNAME
+              value: {{ .Values.admin.username | quote }}
+            - name: ADMIN_EMAIL
+              value: {{ .Values.admin.email | quote }}
+            - name: ADMIN_FULL_NAME
+              value: {{ .Values.admin.fullName | quote }}
+            {{- if .Values.admin.existingSecret.name }}
+            - name: ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.admin.existingSecret.name }}
+                  key: {{ .Values.admin.existingSecret.key }}
+            {{- else }}
+            - name: ADMIN_PASSWORD
+              value: {{ .Values.admin.password | quote }}
+            {{- end }}
+            - name: FORCE_CREATE
+              value: {{ .Values.force.create | quote }}
+            - name: FORCE_PASSWORD_CHANGE
+              value: {{ .Values.forcePasswordChange | quote }}
+          command:
+            - sh
+            - -c
+            - |
+              set -eu
+
+              ES_URL="${DATA_WAREHOUSE_SCHEMA}://${DATA_WAREHOUSE_HOSTS}:${DATA_WAREHOUSE_PORT}"
+
+              echo "══════ Ensuring admin user exists ══════"
+              echo "  es-url=${ES_URL}"
+              echo "  es-user=${DATA_WAREHOUSE_USER}"
+              echo "  admin-username=${ADMIN_USERNAME}"
+
+              echo ""
+              echo "── checking if user '${ADMIN_USERNAME}' already exists ──"
+              HTTP_CODE=$(curl -s -o /dev/null -w '%{http_code}' --insecure \
+                -u "${DATA_WAREHOUSE_USER}:${DATA_WAREHOUSE_PASSWORD}" \
+                "${ES_URL}/_security/user/${ADMIN_USERNAME}" || echo "000")
+              echo "  HTTP ${HTTP_CODE}"
+
+              if [ "$HTTP_CODE" = "200" ] && [ "${FORCE_CREATE}" != "true" ]; then
+                echo "  ⏭  user '${ADMIN_USERNAME}' already exists — skipping"
+                echo "     (set force.create=true to recreate)"
+                echo ""
+                echo "  ═══════════════════════════════════════════════════════════"
+                echo "  Admin user already exists"
+                echo "  ═══════════════════════════════════════════════════════════"
+                echo "    username: ${ADMIN_USERNAME}"
+                echo "  ═══════════════════════════════════════════════════════════"
+                exit 0
+              fi
+
+              if [ "$HTTP_CODE" = "200" ]; then
+                echo "  ⚠  user exists but force.create=true — recreating"
+              elif [ "$HTTP_CODE" = "404" ]; then
+                echo "  user does not exist — creating"
+              elif [ "$HTTP_CODE" = "000" ]; then
+                echo "❌ could not reach Elasticsearch at ${ES_URL}"
+                exit 1
+              else
+                echo "❌ unexpected HTTP ${HTTP_CODE} from existence check"
+                exit 1
+              fi
+
+              echo ""
+              echo "── creating user '${ADMIN_USERNAME}' ──"
+              BODY=$(printf '{
+                "username":"%s",
+                "password":"%s",
+                "roles":["arcanna_admin","superuser"],
+                "full_name":"%s",
+                "email":"%s",
+                "metadata":{
+                  "force_password_change":"%s",
+                  "aiops":{"enabled":true}
+                },
+                "enabled":true
+              }' \
+                "${ADMIN_USERNAME}" \
+                "${ADMIN_PASSWORD}" \
+                "${ADMIN_FULL_NAME}" \
+                "${ADMIN_EMAIL}" \
+                "${FORCE_PASSWORD_CHANGE}")
+
+              RESP=$(curl -s -o /dev/null -w '%{http_code}' --insecure \
+                -H 'Content-Type: application/json' \
+                -X POST \
+                --data "${BODY}" \
+                -u "${DATA_WAREHOUSE_USER}:${DATA_WAREHOUSE_PASSWORD}" \
+                "${ES_URL}/_security/user/${ADMIN_USERNAME}" || echo "000")
+
+              if [ "$RESP" != "200" ] && [ "$RESP" != "201" ]; then
+                echo "❌ failed to create admin user (HTTP ${RESP})"
+                exit 1
+              fi
+
+              echo "  ✅ admin user created (HTTP ${RESP})"
+
+              echo ""
+              echo "  ═══════════════════════════════════════════════════════════════"
+              echo "  🔐 SAVE THESE CREDENTIALS — SHOWN ONCE, NOT LOGGED ANYWHERE ELSE"
+              echo "  ═══════════════════════════════════════════════════════════════"
+              echo "    arcanna admin: ${ADMIN_USERNAME} / ${ADMIN_PASSWORD}"
+              echo "    elastic user:  ${DATA_WAREHOUSE_USER} / ${DATA_WAREHOUSE_PASSWORD}"
+              if [ "${FORCE_PASSWORD_CHANGE}" = "true" ]; then
+                echo ""
+                echo "    Note: arcanna admin will be prompted to change password on first login."
+              fi
+              echo "  ═══════════════════════════════════════════════════════════════"

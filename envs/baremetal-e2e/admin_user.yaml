@@ -1,0 +1,8 @@
+admin:
+  username: admin-test
+  email: contact@siscale.com
+  password: "ChangeMe!2026"
+
+esSecretName: aiops-e2e-es-elastic-user
+
+forcePasswordChange: false

@@ -20,7 +20,8 @@ dataVolume:
   mountPath: /opt/arcanna/data
   size: 5Gi
   storageClassName: @STORAGE_CLASS@
-
+  seed:
+    enabled: true
 logVolume:
   size: 1Gi
 

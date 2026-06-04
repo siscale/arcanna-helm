@@ -1,0 +1,43 @@
+# ── Default values for the admin-user chart ──────────────────────────
+# Override per env in envs/<env>/admin-user.yaml.
+
+image:
+  repository: gcr.io/siscale-aiops/aiops-rest-api-release
+  tag: "latest"                 # override via Makefile: --set image.tag=$(REST_API_TAG)
+  pullPolicy: IfNotPresent
+
+imagePullSecrets:
+  - name: gcr-pull-secret
+
+# Admin user to create
+admin:
+  username: admin
+  email: contact@siscale.com
+  fullName: Admin
+  password: ""                  # set per-env (OR use existingSecret)
+  existingSecret:
+    name: ""
+    key: password
+
+# Recreate user even if it exists
+force:
+  create: false
+
+# Prompt password change on first UI login
+forcePasswordChange: true
+
+# ── Secret references ────────────────────────────────────────────────
+# ECK-managed ES secret — override per env. Same key the rest-api chart takes.
+# The chart derives the ES service hostname from this:
+#   <clusterName>-es-elastic-user → <clusterName>-es-http
+esSecretName: ""                # MUST set per-env (e.g. aiops-staging-es-elastic-user)
+
+# Standard ECK defaults — rarely change, no env-file override needed.
+esSchema: https
+esPort: 9200
+
+job:
+  ttlSecondsAfterFinished: 600
+  backoffLimit: 3
+  activeDeadlineSeconds: 300
+  restartPolicy: OnFailure

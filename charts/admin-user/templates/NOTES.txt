@@ -1,0 +1,14 @@
+══════ admin-user chart installed ══════
+
+The bootstrap Job is running. Credentials are printed once in the Job's logs.
+
+To watch:
+  kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/name=admin-user -f --tail=50
+
+To re-print the credentials (still in the Job's log buffer until TTL expires):
+  kubectl logs -n {{ .Release.Namespace }} \
+    job/{{ .Release.Name }}-{{ .Release.Revision | default 1 }}
+
+To re-run (e.g. password reset):
+  helm upgrade {{ .Release.Name }} ./admin-user -n {{ .Release.Namespace }} \
+    --reuse-values --set force.create=true
