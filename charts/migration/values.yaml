@@ -28,3 +28,5 @@ config:
     hosts: "aiops-staging-es-http"
     port: "9200"
     schema: "https"
+
+jobAnnotations: {}

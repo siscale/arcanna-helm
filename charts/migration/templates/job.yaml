@@ -4,6 +4,10 @@ metadata:
   name: {{ include "migration.name" . }}
   labels:
     {{- include "migration.labels" . | nindent 4 }}
+  {{- with .Values.jobAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 spec:
   backoffLimit: {{ .Values.backoffLimit }}
   activeDeadlineSeconds: {{ int .Values.activeDeadlineSeconds }}
