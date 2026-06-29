@@ -13,7 +13,7 @@ NAMESPACE    ?= arcanna
 CHARTS_DIR   := charts
 ENVS_DIR     := envs/$(ENV)
 HELM_TIMEOUT         := 300s
-HELM_SPECIAL_TIMEOUT := 600s
+HELM_SPECIAL_TIMEOUT := 1200s
 
 # NodePorts used when BACKEND_URL / MONITORING_URL are empty.
 REST_API_NODE_PORT           ?= 31301
@@ -466,7 +466,7 @@ deploy-core-framework:
 # ── Modular-service deployments (one chart, per-service values) ──────
 .PHONY: deploy-hypervisor deploy-exposer deploy-agents-exposer
 .PHONY: deploy-cacher deploy-clustering deploy-buckets-updater deploy-retrainer
-.PHONY: deploy-worker deploy-feedbacker deploy-remote-llm deploy-monitoring
+.PHONY: deploy-worker deploy-feedbacker  deploy-monitoring
 
 deploy-hypervisor:
 	$(call helm_modular,hypervisor,$(MODULAR_TAG))
@@ -504,8 +504,6 @@ deploy-worker:
 deploy-feedbacker:
 	$(call helm_modular,feedbacker,$(MODULAR_TAG))
 
-deploy-remote-llm:
-	$(call helm_modular,remote-llm,$(MODULAR_TAG))
 
 deploy-monitoring:
 	@echo "──── deploying monitoring [$(ENV)] ────"
@@ -615,7 +613,6 @@ deploy-all: init-env deploy-infra
 	$(MAKE) deploy-exposer        ENV=$(ENV) NAMESPACE=$(NAMESPACE) MODULAR_TAG=$(MODULAR_TAG)
 	$(MAKE) deploy-agents-exposer ENV=$(ENV) NAMESPACE=$(NAMESPACE) MODULAR_TAG=$(MODULAR_TAG)
 	$(MAKE) deploy-feedbacker     ENV=$(ENV) NAMESPACE=$(NAMESPACE) MODULAR_TAG=$(MODULAR_TAG)
-	$(MAKE) deploy-remote-llm     ENV=$(ENV) NAMESPACE=$(NAMESPACE) MODULAR_TAG=$(MODULAR_TAG)
 	$(MAKE) deploy-mcp-client     ENV=$(ENV) NAMESPACE=$(NAMESPACE) MCP_CLIENT_TAG=$(MCP_CLIENT_TAG)
 	@echo ""
 	@echo "══════ Phase 5: workers + processing ══════"
@@ -655,7 +652,6 @@ upgrade-all:
 	$(MAKE) deploy-exposer         ENV=$(ENV) NAMESPACE=$(NAMESPACE) MODULAR_TAG=$(MODULAR_TAG)
 	$(MAKE) deploy-agents-exposer  ENV=$(ENV) NAMESPACE=$(NAMESPACE) MODULAR_TAG=$(MODULAR_TAG)
 	$(MAKE) deploy-feedbacker      ENV=$(ENV) NAMESPACE=$(NAMESPACE) MODULAR_TAG=$(MODULAR_TAG)
-	$(MAKE) deploy-remote-llm      ENV=$(ENV) NAMESPACE=$(NAMESPACE) MODULAR_TAG=$(MODULAR_TAG)
 	$(MAKE) deploy-worker          ENV=$(ENV) NAMESPACE=$(NAMESPACE) MODULAR_TAG=$(MODULAR_TAG)
 	$(MAKE) deploy-buckets-updater ENV=$(ENV) NAMESPACE=$(NAMESPACE) MODULAR_TAG=$(MODULAR_TAG)
 	$(MAKE) deploy-retrainer       ENV=$(ENV) NAMESPACE=$(NAMESPACE) MODULAR_TAG=$(MODULAR_TAG)

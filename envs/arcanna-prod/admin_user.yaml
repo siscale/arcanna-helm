@@ -1,0 +1,10 @@
+# envs/arcanna-prod/admin-user.yaml
+# Substituted by `make init-env` from this template.
+admin:
+  username: admin
+  email: contact@siscale.com
+  password: ""
+
+esSecretName: aiops-prod-es-elastic-user
+
+forcePasswordChange: true

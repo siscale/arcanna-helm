@@ -1,0 +1,19 @@
+clusterName: aiops-prod
+version: "8.19.9"
+
+nodeSets:
+  - name: default
+    count: 5
+    config:
+      node.store.allow_mmap: false
+    javaOpts: "-Xms9g -Xmx9g"
+    resources:
+      requests:
+        memory: "12Gi"
+        cpu: "4"
+      limits:
+        memory: "16Gi"
+        cpu: "8"
+    storage:
+      size: 500Gi
+      storageClassName: sc-prod

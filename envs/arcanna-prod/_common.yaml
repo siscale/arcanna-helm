@@ -1,0 +1,23 @@
+# ─────────────────────────────────────────────────────────────────────
+# Env-wide values shared by every chart in this environment (arcanna-prod).
+# Loaded by the Makefile BEFORE each chart-specific override.
+# ─────────────────────────────────────────────────────────────────────
+
+# ECK auto-creates secret {clusterName}-es-elastic-user and service
+# {clusterName}-es-http. clusterName=aiops-prod (see elasticsearch.yaml).
+esSecretName: aiops-prod-es-elastic-user
+
+# Top-level form (modular-service, monitoring, arcanna-rag)
+elasticsearch:
+  hosts: "aiops-prod-es-http"
+
+# Nested form (aiops-rest-api, core-framework, main-config, migration)
+config:
+  elasticsearch:
+    hosts: "aiops-prod-es-http"
+  kibana:
+    url: "https://prod-kb.arcanna.ai"
+
+# Default storage class for log volumes.
+logVolume:
+  storageClassName: sc-prod

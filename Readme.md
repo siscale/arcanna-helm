@@ -50,7 +50,7 @@ make deploy-all
 8 phases run in order: namespace → secrets (auto-gen PG/Redis creds) →
 ES/Kafka/PG/Redis/Kibana → main-config → migration start → core services
 (rest-api, core-framework, hypervisor, exposer, agents-exposer, feedbacker,
-remote-llm, mcp-client) → workers + processing → monitoring → migration end
+ mcp-client) → workers + processing → monitoring → migration end
 → frontend. The auto-generated DB passwords are printed once — save them.
 
 ### Upgrading to a new Arcanna version
