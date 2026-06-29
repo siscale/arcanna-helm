@@ -1,0 +1,16 @@
+# arcanna-rag has its own PVCs for vector store + logs.
+storagePvc:
+  storageClassName: sc-prod
+
+logPvc:
+  storageClassName: sc-prod
+
+# FOR GPU
+#gpu:
+#  enabled: true
+#  nodeSelector:
+#    gpu: "true"
+#  tolerations:
+#    - key: nvidia.com/gpu
+#      operator: Exists
+#      effect: NoSchedule

@@ -1,0 +1,14 @@
+kraft:
+  replicas: 3
+  dataVolumeCapacity: 5Gi
+  storageClassName: sc-prod
+
+kafka:
+  replicas: 3
+  dataVolumeCapacity: 80Gi
+  storageClassName: sc-prod
+  jvm: "-Xmx4G -Xms4G"
+  config:
+    defaultReplicationFactor: 3
+    minInsyncReplicas: 2
+    logRetentionHours: 24

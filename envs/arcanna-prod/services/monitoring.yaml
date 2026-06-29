@@ -1,0 +1,9 @@
+image:
+  repository: gcr.io/siscale-aiops/component-webservice
+
+logVolume:
+  size: 1Gi
+
+# service.type / nodePort flipped to NodePort by Makefile when
+# MONITORING_URL is empty in .env. See MONITORING_NODEPORT_ARGS.
+# Chart defaults (api=31402, shipper=31412) live in charts/monitoring/values.yaml.

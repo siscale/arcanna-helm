@@ -1,0 +1,31 @@
+serviceName: hypervisor
+componentType: hypervisor
+port: 8000
+image:
+  repository: gcr.io/siscale-aiops/component-webservice
+resources:
+  requests:
+    cpu: "150m"
+    memory: "128Mi"
+  limits:
+    cpu: "2000m"
+    memory: "8192Mi"
+# Hypervisor keeps shared state on a data volume — on NFS (RWX) here,
+# while logs stay on the default per-env log storage class.
+dataVolume:
+  enabled: true
+  mountPath: /opt/arcanna/data
+  size: 10Gi
+  storageClassName: nfs
+  # Seed the empty PVC from the image's pre-baked /opt/arcanna/data
+  # (ML models like generic-1-model.hdf5) on first install. Without this,
+  # the empty volume mount masks the baked-in models and the dir is empty.
+  seed:
+    enabled: true
+logVolume:
+  size: 2Gi
+extraConfig:
+  enabled: true
+  name: hypervisor-config
+  mountPath: /opt/arcanna/config/hypervisor/hypervisor.config
+  subPath: hypervisor.config
