@@ -4,6 +4,10 @@ metadata:
   name: aiops-platform
   labels:
     {{- include "aiops-platform.labels" . | nindent 4 }}
+  {{- if .Values.neg.enabled }}
+  annotations:
+    cloud.google.com/neg: '{"exposed_ports": {"{{ .Values.port }}": {"name": "{{ .Values.neg.name }}"}}}'
+  {{- end }}
 spec:
   type: ClusterIP
   ports:

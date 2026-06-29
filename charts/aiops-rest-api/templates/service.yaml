@@ -1,12 +1,17 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: aiops-rest-api-http
+  name: aiops-rest-api
   labels:
     {{- include "aiops-rest-api.labels" . | nindent 4 }}
-  {{- if .Values.service.backendConfig.enabled }}
+  {{- if or .Values.service.backendConfig.enabled .Values.neg.enabled }}
   annotations:
+    {{- if .Values.service.backendConfig.enabled }}
     cloud.google.com/backend-config: '{"default": "{{ include "aiops-rest-api.fullname" . }}-backend-config"}'
+    {{- end }}
+    {{- if .Values.neg.enabled }}
+    cloud.google.com/neg: '{"exposed_ports": {"{{ .Values.service.port }}": {"name": "{{ .Values.neg.name }}"}}}'
+    {{- end }}
   {{- end }}
 spec:
   type: ClusterIP
@@ -22,7 +27,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: aiops-rest-api
+  name: aiops-rest-api-np
   labels:
     {{- include "aiops-rest-api.labels" . | nindent 4 }}
 spec:

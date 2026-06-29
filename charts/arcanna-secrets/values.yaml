@@ -1,0 +1,9 @@
+gcpServiceAccount: gcp-sa
+projectID: projectID
+region: us-west1
+clusterName: gke cluster name
+secretStoreName: gcp-secret-store # metadata.name from secretstore
+postgresSecretName: ""
+redisSecretName: ""
+appCredentialsSecretName: ""
+adminPasswordSecretName: ""

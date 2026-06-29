@@ -76,3 +76,7 @@ service:
   nodePort:
     api: 31402      # only used when service.type == NodePort
     shipper: 31412
+
+neg:
+  enabled: false
+  name: ""

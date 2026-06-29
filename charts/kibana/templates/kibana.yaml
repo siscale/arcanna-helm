@@ -13,6 +13,20 @@ spec:
   config:
     server.publicBaseUrl: {{ .Values.publicBaseUrl | quote }}
   {{- end }}
+  {{- if or .Values.tls.selfSignedCertificate.disabled .Values.neg.enabled }}
+  http:
+    {{- if .Values.tls.selfSignedCertificate.disabled }}
+    tls:
+      selfSignedCertificate:
+        disabled: true
+    {{- end }}
+    {{- if .Values.neg.enabled }}
+    service:
+      metadata:
+        annotations:
+          cloud.google.com/neg: '{"exposed_ports": {"5601": {"name": "{{ .Values.neg.name }}"}}}'
+    {{- end }}
+  {{- end }}
   podTemplate:
     spec:
       containers:

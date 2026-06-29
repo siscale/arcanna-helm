@@ -5,6 +5,13 @@ clusterName: aiops
 
 version: "8.17.0"
 
+tls:
+  # ECK serves HTTPS with a self-signed cert by default.
+  # Set disabled: true to turn off TLS (e.g. when a GCP/NGINX LB terminates TLS,
+  # or for in-cluster-only traffic where you don't want cert management).
+  selfSignedCertificate:
+    disabled: false
+
 nodeSets:
   - name: default
     count: 3

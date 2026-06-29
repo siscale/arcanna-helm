@@ -1,0 +1,5 @@
+apiVersion: v2
+name: arcanna-secrets
+description: ServiceAccount + SecretStore + ExternalSecrets for Arcanna (GCP Secret Manager via ESO)
+type: application
+version: 0.1.0
