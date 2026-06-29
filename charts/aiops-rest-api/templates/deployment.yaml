@@ -32,6 +32,8 @@ spec:
           env:
             {{- include "aiops-rest-api.esEnvVars" . | nindent 12 }}
             {{- include "aiops-rest-api.appSecretEnvVars" . | nindent 12 }}
+            - name: COMPONENT_TYPE
+              value: "aiops_rest_api"
             - name: ROOT_LOGGER_LEVEL
               value: {{ .Values.config.logging.rootLevel | quote }}
             - name: LOGGER_LEVEL
@@ -44,6 +46,10 @@ spec:
             - name: rest-config
               mountPath: /app/config/main.config
               subPath: main.config
+            {{- if .Values.filebeat.enabled }}
+            - name: monitoring-log-volume
+              mountPath: /app/log
+            {{- end }}
           resources:
             {{- toYaml .Values.samples.resources | nindent 12 }}
         {{- end }}

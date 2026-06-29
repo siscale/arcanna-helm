@@ -37,13 +37,17 @@ spec:
               mountPath: /arcanna-log
         {{- end }}
         {{- /*
-          Seed data PVC from the image on first install (hypervisor only).
+          Seed data PVC from the image (hypervisor only).
           On a fresh PVC the mount masks the image's pre-baked
           /opt/arcanna/data (ML models, sample configs). This init runs with
-          the same image, copies /opt/arcanna/data into the PVC if empty,
-          then exits. Subsequent deploys see a populated PVC and skip.
-          Enabled per-service: set dataVolume.seed.enabled=true in the
-          service's env file (currently only hypervisor).
+          the same image and overlays the image's seed files onto the PVC
+          on EVERY start:
+            - seed file exists on volume  -> OVERWRITE with the image's copy
+            - seed file missing on volume -> CREATE it
+            - file on volume NOT in seed  -> LEAVE UNTOUCHED (e.g. artifacts/)
+          Nothing on the volume is ever deleted; only source-matched files are
+          (re)written. Enabled per-service: set dataVolume.seed.enabled=true in
+          the service's env file (currently only hypervisor).
         */ -}}
         {{- $seedEnabled := false }}
         {{- if and .Values.dataVolume.enabled (hasKey .Values.dataVolume "seed") }}
@@ -70,13 +74,13 @@ spec:
                 exit 0
               fi
 
-              if [ -n "$(ls -A "${DST}" 2>/dev/null)" ]; then
-                echo "[seed-data] target already populated — skipping (idempotent)"
-                ls -la "${DST}" | head -10
-                exit 0
-              fi
-
-              echo "[seed-data] copying ${SRC}/ -> ${DST}/ ..."
+              # Overlay the image's seed files onto the volume every start:
+              #   - seed file exists on volume  -> OVERWRITE with image's copy
+              #   - seed file missing on volume -> CREATE it
+              #   - file on volume NOT in seed  -> LEAVE UNTOUCHED (e.g. artifacts/)
+              # cp -a (no -n) overwrites source-matched files but never deletes
+              # anything else already on the volume.
+              echo "[seed-data] overlaying ${SRC}/ -> ${DST}/ (image files win, others preserved) ..."
               cp -a "${SRC}/." "${DST}/"
               echo "[seed-data] done. Contents:"
               ls -la "${DST}" | head -20
