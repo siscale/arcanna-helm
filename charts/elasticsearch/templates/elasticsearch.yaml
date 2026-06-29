@@ -6,6 +6,12 @@ metadata:
     {{- include "arcanna-elasticsearch.labels" . | nindent 4 }}
 spec:
   version: {{ .Values.version }}
+  {{- if .Values.tls.selfSignedCertificate.disabled }}
+  http:
+    tls:
+      selfSignedCertificate:
+        disabled: true
+  {{- end }}
   nodeSets:
   {{- range .Values.nodeSets }}
   - name: {{ .name }}

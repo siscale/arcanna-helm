@@ -28,3 +28,7 @@ service:
   nodePort:
     enabled: false
     port: 31300
+
+neg:
+  enabled: false
+  name: ""

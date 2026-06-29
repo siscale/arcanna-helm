@@ -162,6 +162,7 @@ config:
     bufferedDebug: false
     bufferSize: 100
     monitoring: true
+    jsonLogging: false
     metricsIntervalS: 10
     logRotateMaxMb: 64
     logRotateMaxBackup: 1

@@ -21,6 +21,8 @@ dataVolume:
   mountPath: /opt/arcanna/data
   size: 10Gi
   storageClassName: sc-stage
+  seed:
+    enabled: true
 
 logVolume:
   size: 2Gi

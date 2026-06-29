@@ -1,0 +1,7 @@
+# charts/admin-user/templates/marker-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-marker
+data:
+  marker: "admin-user app has a normal resource so the PostSync hook fires"

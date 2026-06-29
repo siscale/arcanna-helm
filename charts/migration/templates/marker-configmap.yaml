@@ -1,0 +1,17 @@
+# Marker ConfigMap — gives this Application a non-hook resource so ArgoCD
+# performs a real sync operation, which triggers the Sync/PostSync hook Job.
+# Without at least one normal resource, a hook-only Application shows
+# "no resources", the Sync button is disabled, and the hook never fires.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-marker
+  labels:
+    {{- include "migration.labels" . | nindent 4 }}
+  # Deliberately NO argocd.argoproj.io/hook annotation — this must be a
+  # NORMAL resource so the Application has something to sync, which is what
+  # triggers the hook Job to fire.
+data:
+  release: {{ .Release.Name | quote }}
+  phase: {{ .Values.phase | default "" | quote }}
+  note: "Inert marker so ArgoCD fires the migration hook for this hook-only Application."

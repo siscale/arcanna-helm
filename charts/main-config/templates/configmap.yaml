@@ -17,6 +17,7 @@ data:
       buffered_debug: {{ .Values.config.logging.bufferedDebug }}
       buffer_size: {{ .Values.config.logging.bufferSize }}
       monitoring: {{ .Values.config.logging.monitoring }}
+      json_logging: {{ .Values.config.logging.jsonLogging }}
       metrics_interval_s: {{ .Values.config.logging.metricsIntervalS }}
       log_rotate:
         max_mb: {{ .Values.config.logging.logRotateMaxMb }}

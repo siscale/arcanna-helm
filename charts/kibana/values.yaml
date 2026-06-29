@@ -19,3 +19,13 @@ resources:
   limits:
     memory: "2Gi"
     cpu: "2"
+
+tls:
+  # ECK serves HTTPS with a self-signed cert by default.
+  # Set disabled: true to turn off TLS (e.g. when a GCP/NGINX LB terminates TLS).
+  selfSignedCertificate:
+    disabled: false
+
+neg:
+  enabled: false
+  name: ""
