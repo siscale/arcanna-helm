@@ -125,15 +125,6 @@ Both modes driven by `.env`:
 Same logic independently for `MONITORING_URL` / `MONITORING_NODE_PORT`.
 Mixed is fine — supply one, leave the other empty.
 
-## Air-gapped clusters
-
-Installing on a cluster that only has internet during install (and briefly for
-upgrades)? Use the `airgap` env and the tooling in [`airgap/`](airgap/README.md):
-mirror all images into an internal registry (`airgap/mirror-images.sh`), point each
-node's runtime at it (`airgap/setup-node-mirror.sh`), then `make deploy-all
-ENV=airgap`. The `airgap` env ships `pullPolicy: IfNotPresent` on every workload so
-pods don't re-pull once internet is gone.
-
 ## Prerequisites
 
 - ECK operator (manages Elasticsearch + Kibana CRs)
