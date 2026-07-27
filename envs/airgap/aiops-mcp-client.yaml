@@ -1,0 +1,7 @@
+# aiops-mcp-client override for the airgap env.
+# The template ships no mcp-client env file; deploy-mcp-client picks this up
+# via its -f wildcard once it exists.
+
+# Air-gap: never re-pull once internet is cut — use the node's cached image.
+image:
+  pullPolicy: IfNotPresent

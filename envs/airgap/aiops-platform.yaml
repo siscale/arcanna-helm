@@ -1,0 +1,11 @@
+# backendUrl / monitoringUrl resolved at deploy time from .env
+# (or auto-built from NodePort + first node IP if empty).
+
+# Air-gap: never re-pull once internet is cut — use the node's cached image.
+image:
+  pullPolicy: IfNotPresent
+
+service:
+  nodePort:
+    enabled: true
+    port: 31400

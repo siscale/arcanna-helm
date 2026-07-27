@@ -1,0 +1,16 @@
+serviceName: clustering
+componentType: clustering
+port: 8989
+
+image:
+  repository: gcr.io/siscale-aiops/component-worker
+  # Air-gap: never re-pull once internet is cut — use the node's cached image.
+  pullPolicy: IfNotPresent
+
+resources:
+  requests:
+    cpu: "100m"
+    memory: "64Mi"
+  limits:
+    cpu: "2000m"
+    memory: "2048Mi"

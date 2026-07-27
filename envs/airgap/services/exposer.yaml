@@ -1,0 +1,19 @@
+serviceName: exposer
+componentType: exposer
+port: 9666
+
+image:
+  repository: gcr.io/siscale-aiops/component-webservice
+  # Air-gap: never re-pull once internet is cut — use the node's cached image.
+  pullPolicy: IfNotPresent
+
+service:
+  nodePort:
+    enabled: true
+    port: 31403
+
+extraConfig:
+  enabled: true
+  name: exposer-config
+  mountPath: /opt/arcanna/config/exposer/exposer.config
+  subPath: exposer.config

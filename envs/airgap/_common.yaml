@@ -1,0 +1,23 @@
+# ─────────────────────────────────────────────────────────────────────
+# Generated from envs/_template/ by `make init-env ENV=airgap`.
+# Edit freely — your changes stay on disk. `make init-env` is idempotent
+# and will not overwrite an existing env directory.
+# ─────────────────────────────────────────────────────────────────────
+
+# Elasticsearch — ECK uses <clusterName>-es-http / -es-elastic-user.
+esSecretName: aiops-airgap-es-elastic-user
+
+elasticsearch:
+  hosts: "aiops-airgap-es-http"
+
+config:
+  elasticsearch:
+    hosts: "aiops-airgap-es-http"
+  # No kibana.url by default — NodePort mode. Uncomment and set if you
+  # have DNS + ingress in front of Kibana.
+  # kibana:
+  #   url: "https://kibana.example.com"
+
+# Default storage class for log volumes (every service has one).
+logVolume:
+  storageClassName: sc-default

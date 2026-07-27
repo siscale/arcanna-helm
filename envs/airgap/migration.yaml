@@ -1,0 +1,5 @@
+# All shared values come from _common.yaml.
+
+# Air-gap: never re-pull once internet is cut — use the node's cached image.
+image:
+  pullPolicy: IfNotPresent

@@ -1,0 +1,11 @@
+# Only deployed with: make deploy-arcanna-rag ENV=airgap
+
+# Air-gap: never re-pull once internet is cut — use the node's cached image.
+image:
+  pullPolicy: IfNotPresent
+
+storagePvc:
+  storageClassName: sc-default
+
+logPvc:
+  storageClassName: sc-default
