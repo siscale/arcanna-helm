@@ -1,3 +1,4 @@
 # Secrets
 ./gcr-pull-sa-key.json
 .env
+.idea

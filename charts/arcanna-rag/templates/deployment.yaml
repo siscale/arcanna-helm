@@ -112,7 +112,7 @@ spec:
         {{- if .Values.filebeat.enabled }}
         - name: log-shipper
           image: {{ .Values.filebeat.image }}
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           securityContext:
             runAsUser: 0
           resources:
