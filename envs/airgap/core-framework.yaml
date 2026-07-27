@@ -1,4 +1,0 @@
-image:
-  repository: gcr.io/siscale-aiops/component-core-standalone
-  # Air-gap: never re-pull once internet is cut — use the node's cached image.
-  pullPolicy: IfNotPresent
