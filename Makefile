@@ -79,8 +79,24 @@ RAG_TAG                ?= $(TAG)
 RELEASE_VERSION        ?= $(TAG)
 
 # ── Helpers ──────────────────────────────────────────────────────────
+# Clear a release stuck in a pending-* state left by an interrupted helm op
+# (canceled/killed mid-upgrade). Without this the next `helm upgrade` dies with
+# "another operation (install/upgrade/rollback) is in progress". Only pending-*
+# is cleared — `failed` is left alone (helm upgrades over that fine). Rollback to
+# the previous revision; if there's no good revision (pending-install), uninstall.
+define helm_unlock
+	@status=$$(helm status $(1) -n $(NAMESPACE) 2>/dev/null | awk '/^STATUS:/{print $$2}'); \
+	if echo "$$status" | grep -q '^pending-'; then \
+		echo "HELM Release $(1) stuck in $$status .Auto-clearing before deploy"; \
+		helm rollback $(1) -n $(NAMESPACE) 2>/dev/null \
+			|| helm uninstall $(1) -n $(NAMESPACE) 2>/dev/null \
+			|| true; \
+	fi
+endef
+
 define helm_upgrade
 	@echo "──── deploying $(1) [$(ENV)] ────"
+	$(call helm_unlock,$(1))
 	helm upgrade --install $(1) $(CHARTS_DIR)/$(1) \
 		-n $(NAMESPACE) \
 		-f $(CHARTS_DIR)/$(1)/values.yaml \
@@ -94,6 +110,7 @@ endef
 # Deploy modular-service chart with per-service values file
 define helm_modular
 	@echo "──── deploying $(1) [$(ENV)] (modular-service) ────"
+	$(call helm_unlock,$(1))
 	helm upgrade --install $(1) $(CHARTS_DIR)/modular-service \
 		-n $(NAMESPACE) \
 		-f $(CHARTS_DIR)/modular-service/values.yaml \
@@ -411,6 +428,7 @@ deploy-migration-end:
 	$(call helm_migration,end,--start-jobs)
 
 deploy-rest-api:
+	$(call helm_unlock,aiops-rest-api)
 	@if kubectl get secret arcanna-app-credentials -n $(NAMESPACE) >/dev/null 2>&1; then \
 		echo "──── deploying aiops-rest-api [$(ENV)] tag=$(REST_API_TAG) (secret exists) ────"; \
 		helm upgrade --install aiops-rest-api $(CHARTS_DIR)/aiops-rest-api \
@@ -453,6 +471,7 @@ deploy-rest-api:
 
 deploy-core-framework:
 	@echo "──── deploying core-framework [$(ENV)] tag=$(CORE_FRAMEWORK_TAG) ────"
+	$(call helm_unlock,core-framework)
 	helm upgrade --install core-framework $(CHARTS_DIR)/core-framework \
 		-n $(NAMESPACE) \
 		-f $(CHARTS_DIR)/core-framework/values.yaml \
@@ -491,6 +510,7 @@ deploy-retrainer:
 
 deploy-worker:
 	@echo "──── deploying worker [$(ENV)] (modular-service) ────"
+	$(call helm_unlock,worker)
 	helm upgrade --install worker $(CHARTS_DIR)/modular-service \
 		-n $(NAMESPACE) \
 		-f $(CHARTS_DIR)/modular-service/values.yaml \
@@ -507,6 +527,7 @@ deploy-feedbacker:
 
 deploy-monitoring:
 	@echo "──── deploying monitoring [$(ENV)] ────"
+	$(call helm_unlock,monitoring)
 	helm upgrade --install monitoring $(CHARTS_DIR)/monitoring \
 		-n $(NAMESPACE) \
 		-f $(CHARTS_DIR)/monitoring/values.yaml \
@@ -520,6 +541,7 @@ deploy-monitoring:
 
 deploy-arcanna-rag:
 	@echo "──── deploying arcanna-rag [$(ENV)] tag=$(RAG_TAG) (manual — not in deploy-all) ────"
+	$(call helm_unlock,arcanna-rag)
 	helm upgrade --install arcanna-rag $(CHARTS_DIR)/arcanna-rag \
 		-n $(NAMESPACE) \
 		-f $(CHARTS_DIR)/arcanna-rag/values.yaml \
@@ -532,6 +554,7 @@ deploy-arcanna-rag:
 
 deploy-mcp-client:
 	@echo "──── deploying aiops-mcp-client [$(ENV)] ────"
+	$(call helm_unlock,aiops-mcp-client)
 	helm upgrade --install aiops-mcp-client $(CHARTS_DIR)/aiops-mcp-client \
 		-n $(NAMESPACE) \
 		-f $(CHARTS_DIR)/aiops-mcp-client/values.yaml \
@@ -544,6 +567,7 @@ deploy-mcp-client:
 
 deploy-platform:
 	@echo "──── deploying aiops-platform [$(ENV)] ────"
+	$(call helm_unlock,aiops-platform)
 	@BURL="$${BACKEND_URL:-$(BACKEND_URL)}"; \
 	MURL="$${MONITORING_URL:-$(MONITORING_URL)}"; \
 	PURL="$${PLATFORM_URL:-$(PLATFORM_URL)}"; \
