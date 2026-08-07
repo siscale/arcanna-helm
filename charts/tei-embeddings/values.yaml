@@ -1,0 +1,46 @@
+image:
+  repository: gcr.io/siscale-aiops/arcanna-tei-embeddings
+  tag: latest
+  pullPolicy: Always
+
+imagePullSecrets:
+  - name: gcr-pull-secret
+
+port: 8091
+
+model:
+  id: "BAAI/bge-base-en-v1.5"
+
+tei:
+  dtype: float32
+  maxBatchTokens: 1024
+  maxClientBatchSize: 32
+  maxBatchRequests: 128
+  tokenizationWorkers: 1
+
+# keep aligned with resources.limits.cpu
+threads: "2"
+
+resources:
+  requests:
+    cpu: "1000m"
+    memory: "1Gi"
+  limits:
+    cpu: "2000m"
+    memory: "2Gi"
+
+logPvc:
+  size: 512Mi
+  storageClassName: ""
+
+filebeat:
+  enabled: true
+  image: docker.elastic.co/beats/filebeat:8.19.9
+  configMapName: filebeat-shipper-config
+  resources:
+    requests:
+      cpu: "150m"
+      memory: "64Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"

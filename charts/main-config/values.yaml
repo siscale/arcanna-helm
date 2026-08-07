@@ -91,6 +91,10 @@ serviceConfigs:
         level: debug
     mcp_client:
         url: http://aiops-mcp-client-http:8001
+    memory:
+        embedder:
+            base_url: http://tei-embeddings:8091
+            api_key: will-be-injected
 
   cacher: |-
     port: 9777

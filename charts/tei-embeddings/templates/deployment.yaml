@@ -1,0 +1,123 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tei-embeddings
+  labels:
+    {{- include "tei-embeddings.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "tei-embeddings.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "tei-embeddings.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: 30
+      initContainers:
+        {{- if .Values.filebeat.enabled }}
+        - name: log-shipper-cleanup
+          image: {{ .Values.filebeat.image }}
+          securityContext:
+            runAsUser: 0
+          command: ['sh', '-c', 'rm -rf /arcanna-log/filebeat.lock']
+          volumeMounts:
+            - name: monitoring-log-volume
+              mountPath: /arcanna-log
+        {{- end }}
+      containers:
+        - name: tei-embeddings
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.port }}
+          args:
+            - "--model-id"
+            - {{ .Values.model.id | quote }}
+            - "--dtype"
+            - {{ .Values.tei.dtype | quote }}
+            - "--max-batch-tokens"
+            - {{ .Values.tei.maxBatchTokens | quote }}
+            - "--max-client-batch-size"
+            - {{ .Values.tei.maxClientBatchSize | quote }}
+            - "--max-batch-requests"
+            - {{ .Values.tei.maxBatchRequests | quote }}
+            - "--tokenization-workers"
+            - {{ .Values.tei.tokenizationWorkers | quote }}
+          env:
+            - name: COMPONENT_TYPE
+              value: "tei-embeddings"
+            - name: PORT
+              value: {{ .Values.port | quote }}
+            - name: MONITORING_PORT
+              value: {{ .Values.port | quote }}
+            - name: DEPLOYMENT_TYPE
+              value: "k8s-deployment"
+            - name: IMAGE_TAG
+              value: {{ .Values.image.tag | quote }}
+            - name: API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: tei-credentials
+                  key: api-key
+            - name: RAYON_NUM_THREADS
+              value: {{ .Values.threads | quote }}
+            - name: OMP_NUM_THREADS
+              value: {{ .Values.threads | quote }}
+            - name: MKL_NUM_THREADS
+              value: {{ .Values.threads | quote }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          startupProbe:
+            httpGet:
+              path: /api/v1/health/check
+              port: {{ .Values.port }}
+            periodSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health/check
+              port: {{ .Values.port }}
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health/check
+              port: {{ .Values.port }}
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          volumeMounts:
+            - name: monitoring-log-volume
+              mountPath: /arcanna-log
+        {{- if .Values.filebeat.enabled }}
+        - name: log-shipper
+          image: {{ .Values.filebeat.image }}
+          imagePullPolicy: Always
+          securityContext:
+            runAsUser: 0
+          resources:
+            {{- toYaml .Values.filebeat.resources | nindent 12 }}
+          volumeMounts:
+            - name: monitoring-log-volume
+              mountPath: /arcanna-log
+            - name: filebeat-shipper-config
+              mountPath: /usr/share/filebeat/filebeat.yml
+              subPath: filebeat.yml
+        {{- end }}
+      volumes:
+        - name: monitoring-log-volume
+          persistentVolumeClaim:
+            claimName: tei-embeddings-log-pvc
+        {{- if .Values.filebeat.enabled }}
+        - name: filebeat-shipper-config
+          configMap:
+            name: {{ .Values.filebeat.configMapName }}
+        {{- end }}

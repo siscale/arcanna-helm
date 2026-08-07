@@ -49,6 +49,7 @@ API_TOKEN          ?= $(shell openssl rand -base64 24 2>/dev/null)
 RAG_API_KEY        ?= $(shell openssl rand -base64 24 2>/dev/null)
 MONITORING_API_KEY ?= $(shell openssl rand -base64 24 2>/dev/null)
 MONITORING_SECRET  ?= $(shell openssl rand -base64 24 2>/dev/null)
+TEI_API_KEY        ?= $(shell openssl rand -base64 24 2>/dev/null)
 
 # Admin user — created in ES security after migration-end.
 # Resolution order: ADMIN_PASSWORD (.env or CLI) > envs/<env>/admin-user.yaml's
@@ -76,6 +77,7 @@ MONITORING_TAG         ?= $(TAG)
 PLATFORM_TAG           ?= $(TAG)
 MCP_CLIENT_TAG         ?= $(TAG)
 RAG_TAG                ?= $(TAG)
+TEI_TAG                ?= $(TAG)
 RELEASE_VERSION        ?= $(TAG)
 
 # ── Helpers ──────────────────────────────────────────────────────────
@@ -281,13 +283,24 @@ create-secret-app: init-namespace
 		echo "   Keys: seal-token, api-token, rag-api-key, monitoring-api-key, monitoring-secret"; \
 	fi
 
-create-secrets: create-secret-postgres create-secret-redis create-secret-gcr create-secret-app
+create-secret-tei: init-namespace
+	@if kubectl get secret tei-credentials -n $(NAMESPACE) >/dev/null 2>&1; then \
+		echo "⏭  tei-credentials already exists in $(NAMESPACE)"; \
+	else \
+		echo "Creating tei-credentials (auto-generating api key)..."; \
+		kubectl create secret generic tei-credentials \
+			-n $(NAMESPACE) \
+			--from-literal=api-key="$(TEI_API_KEY)"; \
+		echo "✅ tei-credentials created"; \
+	fi
+
+create-secrets: create-secret-postgres create-secret-redis create-secret-gcr create-secret-app create-secret-tei
 	@echo ""
 	@echo "══════ All infra secrets ready [$(NAMESPACE)] ══════"
 
 check-secrets:
 	@echo "Checking secrets in $(NAMESPACE):"
-	@for s in postgres-credentials redis-credentials gcr-pull-secret arcanna-app-credentials; do \
+	@for s in postgres-credentials redis-credentials gcr-pull-secret arcanna-app-credentials tei-credentials; do \
 		if kubectl get secret $$s -n $(NAMESPACE) >/dev/null 2>&1; then \
 			echo "  ✅ $$s"; \
 		else \
@@ -482,6 +495,20 @@ deploy-core-framework:
 		--wait \
 		$(HELM_EXTRA_ARGS)
 
+.PHONY: deploy-tei-embeddings
+deploy-tei-embeddings:
+	@echo "──── deploying tei-embeddings [$(ENV)] tag=$(TEI_TAG) ────"
+	$(call helm_unlock,tei-embeddings)
+	helm upgrade --install tei-embeddings $(CHARTS_DIR)/tei-embeddings \
+		-n $(NAMESPACE) \
+		-f $(CHARTS_DIR)/tei-embeddings/values.yaml \
+		$(if $(wildcard $(ENVS_DIR)/_common.yaml),-f $(ENVS_DIR)/_common.yaml) \
+		$(if $(wildcard $(ENVS_DIR)/tei-embeddings.yaml),-f $(ENVS_DIR)/tei-embeddings.yaml) \
+		--set image.tag=$(TEI_TAG) \
+		--timeout $(HELM_TIMEOUT) \
+		--wait \
+		$(HELM_EXTRA_ARGS)
+
 # ── Modular-service deployments (one chart, per-service values) ──────
 .PHONY: deploy-hypervisor deploy-exposer deploy-agents-exposer
 .PHONY: deploy-cacher deploy-clustering deploy-buckets-updater deploy-retrainer
@@ -635,6 +662,7 @@ deploy-all: init-env deploy-infra
 	$(MAKE) deploy-core-framework ENV=$(ENV) NAMESPACE=$(NAMESPACE) CORE_FRAMEWORK_TAG=$(CORE_FRAMEWORK_TAG)
 	$(MAKE) deploy-hypervisor     ENV=$(ENV) NAMESPACE=$(NAMESPACE) MODULAR_TAG=$(MODULAR_TAG)
 	$(MAKE) deploy-exposer        ENV=$(ENV) NAMESPACE=$(NAMESPACE) MODULAR_TAG=$(MODULAR_TAG)
+	$(MAKE) deploy-tei-embeddings ENV=$(ENV) NAMESPACE=$(NAMESPACE) TEI_TAG=$(TEI_TAG)
 	$(MAKE) deploy-agents-exposer ENV=$(ENV) NAMESPACE=$(NAMESPACE) MODULAR_TAG=$(MODULAR_TAG)
 	$(MAKE) deploy-feedbacker     ENV=$(ENV) NAMESPACE=$(NAMESPACE) MODULAR_TAG=$(MODULAR_TAG)
 	$(MAKE) deploy-mcp-client     ENV=$(ENV) NAMESPACE=$(NAMESPACE) MCP_CLIENT_TAG=$(MCP_CLIENT_TAG)
@@ -674,6 +702,7 @@ upgrade-all:
 	$(MAKE) deploy-core-framework  ENV=$(ENV) NAMESPACE=$(NAMESPACE) CORE_FRAMEWORK_TAG=$(CORE_FRAMEWORK_TAG)
 	$(MAKE) deploy-hypervisor      ENV=$(ENV) NAMESPACE=$(NAMESPACE) MODULAR_TAG=$(MODULAR_TAG)
 	$(MAKE) deploy-exposer         ENV=$(ENV) NAMESPACE=$(NAMESPACE) MODULAR_TAG=$(MODULAR_TAG)
+	$(MAKE) deploy-tei-embeddings  ENV=$(ENV) NAMESPACE=$(NAMESPACE) TEI_TAG=$(TEI_TAG)
 	$(MAKE) deploy-agents-exposer  ENV=$(ENV) NAMESPACE=$(NAMESPACE) MODULAR_TAG=$(MODULAR_TAG)
 	$(MAKE) deploy-feedbacker      ENV=$(ENV) NAMESPACE=$(NAMESPACE) MODULAR_TAG=$(MODULAR_TAG)
 	$(MAKE) deploy-worker          ENV=$(ENV) NAMESPACE=$(NAMESPACE) MODULAR_TAG=$(MODULAR_TAG)
@@ -843,7 +872,7 @@ show-resources:
 	@kubectl get pvc -n $(NAMESPACE) 2>/dev/null || echo "  (none)"
 	@echo ""
 	@echo "── Secrets (installer-managed) ──"
-	@for s in postgres-credentials redis-credentials gcr-pull-secret arcanna-app-credentials; do \
+	@for s in postgres-credentials redis-credentials gcr-pull-secret arcanna-app-credentials tei-credentials; do \
 		kubectl get secret $$s -n $(NAMESPACE) --no-headers 2>/dev/null || echo "  $$s  (not present)"; \
 	done
 
@@ -944,6 +973,7 @@ help:
 	@echo "  deploy-rest-api       Deploy Flask REST API"
 	@echo "  deploy-core-framework Deploy core-framework"
 	@echo "  deploy-mcp-client     Deploy MCP client"
+	@echo "  deploy-tei-embeddings Deploy TEI embeddings server"
 	@echo "  deploy-arcanna-rag    Deploy RAG pipeline"
 	@echo "  deploy-workers        Deploy workers (HPA)"
 	@echo "  deploy-platform       Deploy React frontend"

@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: tei-embeddings-log-pvc
+  labels:
+    {{- include "tei-embeddings.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.logPvc.size }}
+  {{- if .Values.logPvc.storageClassName }}
+  storageClassName: {{ .Values.logPvc.storageClassName }}
+  {{- end }}

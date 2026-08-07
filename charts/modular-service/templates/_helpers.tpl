@@ -91,4 +91,10 @@ app: {{ .Values.serviceName }}
     secretKeyRef:
       name: arcanna-app-credentials
       key: rag-api-key
+- name: MEMORY_EMBEDDER_API_KEY
+  valueFrom:
+    secretKeyRef:
+      name: tei-credentials
+      key: api-key
+      optional: true
 {{- end }}
