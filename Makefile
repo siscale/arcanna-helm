@@ -18,6 +18,9 @@ HELM_SPECIAL_TIMEOUT := 1200s
 # NodePorts used when BACKEND_URL / MONITORING_URL are empty.
 REST_API_NODE_PORT           ?= 31301
 MONITORING_NODE_PORT         ?= 31302
+# monitoring is a two-port NodePort Service (api + shipper), so BOTH need a
+# nodePort. Set these per-env in the workflow to avoid cross-namespace clashes.
+MONITORING_SHIPPER_NODE_PORT ?= 31412
 
 # Env bootstrap defaults (used by `make init-env` when .env doesn't set them).
 ES_CLUSTER_NAME    ?= aiops-$(ENV)
@@ -27,11 +30,10 @@ EXPOSER_NODE_PORT  ?= 31403
 
 # When URLs are empty, services must expose NodePorts for the
 # auto-resolved URLs (http://<node-ip>:<port>) to actually work.
-# Monitoring only exposes the api port (9801) as NodePort. The shipper
-# port (9802) is internal — used by other pods to ship logs to monitoring,
-# not intended for external access.
+# Monitoring is a NodePort Service with two ports — k8s exposes BOTH, so api
+# and shipper each get an explicit nodePort (numbers come from the env/workflow).
 REST_API_NODEPORT_ARGS   = $(if $(BACKEND_URL),,--set service.type=NodePort --set service.nodePort.enabled=true --set service.nodePort.port=$(REST_API_NODE_PORT))
-MONITORING_NODEPORT_ARGS = $(if $(MONITORING_URL),,--set service.type=NodePort --set service.nodePort.api=$(MONITORING_NODE_PORT))
+MONITORING_NODEPORT_ARGS = $(if $(MONITORING_URL),,--set service.type=NodePort --set service.nodePort.api=$(MONITORING_NODE_PORT) --set service.nodePort.shipper=$(MONITORING_SHIPPER_NODE_PORT))
 
 # Infra secrets.
 # Left empty here on purpose — the create-secret-* targets auto-generate
