@@ -26,9 +26,8 @@ logPvc:
   storageClassName: ""
 
 # ── Model cache ─────────────────────────────────────────────────────
-# hubOffline "1" makes the init verify-only: nothing is downloaded, so the PVC has to be
-# pre-seeded by hand. That is the strict air-gap mode. The normal mode is "0" here (reconcile
-# while upgrading) with the app container always offline.
+# hubOffline "1" makes the init verify-only: nothing is downloaded, so the PVC has to be pre-seeded by hand.
+# That is for strict air-gap mode. The normal mode is "0".
 models:
   hubOffline: "0"
   pvc:

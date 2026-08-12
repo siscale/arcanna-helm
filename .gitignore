@@ -1,5 +1,4 @@
 # Secrets
 ./gcr-pull-sa-key.json
 .env
-arc-buc-k8s LIVE INSTALL runbook.md
 .idea
