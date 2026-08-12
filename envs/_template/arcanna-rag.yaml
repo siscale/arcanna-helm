@@ -4,3 +4,8 @@ storagePvc:
 
 logPvc:
   storageClassName: @STORAGE_CLASS@
+
+# Model cache PVC (BGE-M3 + reranker + docling artifacts, ~5GB filled once).
+models:
+  pvc:
+    storageClassName: @STORAGE_CLASS@

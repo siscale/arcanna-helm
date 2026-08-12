@@ -5,6 +5,11 @@ storagePvc:
 logPvc:
   storageClassName: sc-prod
 
+# Model cache PVC (BGE-M3 + reranker + docling artifacts, ~5GB filled once).
+models:
+  pvc:
+    storageClassName: sc-prod
+
 # FOR GPU
 #gpu:
 #  enabled: true

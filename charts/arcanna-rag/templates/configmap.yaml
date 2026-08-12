@@ -15,6 +15,7 @@ data:
         root: {{ .Values.config.rag.storage.root }}
         max_file_size_bytes: {{ int .Values.config.rag.storage.maxFileSizeBytes }}
         max_total_upload_bytes: {{ int .Values.config.rag.storage.maxTotalUploadBytes }}
+        max_text_chars_per_document: {{ int .Values.config.rag.storage.maxTextCharsPerDocument }}
       orchestrator:
         stuck_recovery_interval_s: {{ .Values.config.rag.orchestrator.stuckRecoveryIntervalS }}
         conversion:

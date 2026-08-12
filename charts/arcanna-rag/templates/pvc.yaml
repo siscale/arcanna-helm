@@ -17,6 +17,25 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
+  # Model cache. Persists across image/release upgrades, so the ~5GB is
+  # downloaded (or seeded) once and then only topped up with what changed.
+  # See the rag-models-init container in deployment.yaml.
+  name: arcanna-rag-models
+  labels:
+    {{- include "arcanna-rag.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.models.pvc.size }}
+  {{- if .Values.models.pvc.storageClassName }}
+  storageClassName: {{ .Values.models.pvc.storageClassName }}
+  {{- end }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
   name: arcanna-rag-log-pvc
   labels:
     {{- include "arcanna-rag.labels" . | nindent 4 }}
