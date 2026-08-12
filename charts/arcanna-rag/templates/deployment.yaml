@@ -140,12 +140,12 @@ spec:
             - name: DATA_WAREHOUSE_SCHEMA
               value: {{ .Values.elasticsearch.schema | quote }}
             # App secrets
-            - name: SEAL_TOKEN
+            - name: SEAL_TOKEN                 # seal.token
               valueFrom:
                 secretKeyRef:
                   name: arcanna-app-credentials
                   key: seal-token
-            - name: ARCANNA_RAG_API_KEY
+            - name: ARCANNA_RAG_API_KEY        # arcanna_rag.api_key
               valueFrom:
                 secretKeyRef:
                   name: arcanna-app-credentials
