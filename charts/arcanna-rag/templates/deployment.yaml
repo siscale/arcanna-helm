@@ -119,6 +119,10 @@ spec:
               value: {{ .Values.port | quote }}
             - name: DEPLOYMENT_TYPE
               value: "k8s-deployment"
+            - name: POD_UID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.uid
             - name: IMAGE_TAG
               value: {{ .Values.image.tag | quote }}
             - name: HF_HUB_OFFLINE

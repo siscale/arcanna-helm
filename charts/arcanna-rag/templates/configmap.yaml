@@ -6,11 +6,12 @@ metadata:
     {{- include "arcanna-rag.labels" . | nindent 4 }}
 data:
   arcanna_rag.config: |-
+    host: 0.0.0.0
+    port: {{ .Values.port }}
+    uvicorn_workers: {{ .Values.config.rag.uvicornWorkers }}
+
     arcanna_rag:
       api_key: will-be-injected
-      host: 0.0.0.0
-      port: {{ .Values.port }}
-      uvicorn_workers: {{ .Values.config.rag.uvicornWorkers }}
       storage:
         root: {{ .Values.config.rag.storage.root }}
         max_file_size_bytes: {{ int .Values.config.rag.storage.maxFileSizeBytes }}
