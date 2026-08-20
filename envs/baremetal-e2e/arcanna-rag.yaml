@@ -4,3 +4,8 @@ storagePvc:
 
 logPvc:
   storageClassName: sc-e2e
+
+# Model cache PVC (BGE-M3 + reranker + docling artifacts, ~5GB filled once).
+models:
+  pvc:
+    storageClassName: sc-e2e

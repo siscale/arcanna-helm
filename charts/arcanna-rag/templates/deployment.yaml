@@ -42,6 +42,70 @@ spec:
             - name: monitoring-log-volume
               mountPath: /arcanna-log
         {{- end }}
+        # Reconcile the models PVC with what this image needs, before the app starts. Models are not in the image.
+        # This init downloads them (HF_HUB_OFFLINE=0) while the app container always runs offline.
+        - name: rag-models-init
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: HF_HUB_OFFLINE
+              value: {{ .Values.models.hubOffline | quote }}
+            - name: TRANSFORMERS_OFFLINE
+              value: {{ .Values.models.hubOffline | quote }}
+            - name: HF_HOME
+              value: /app/models/huggingface
+            - name: DOCLING_ARTIFACTS_PATH
+              value: /app/models/docling
+            - name: IMAGE_TAG
+              value: {{ .Values.image.tag | quote }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              STAMP=/app/models/.provisioned-by
+
+              if [ -n "${IMAGE_TAG:-}" ] && [ -f "$STAMP" ] && [ "$(cat "$STAMP" 2>/dev/null)" = "$IMAGE_TAG" ]; then
+                echo "rag-models-init: volume already provisioned for $IMAGE_TAG; verifying..."
+                if /app/.venv/bin/python scripts/download_models.py --verify; then
+                  echo "rag-models-init: models ready (no network used)"
+                  exit 0
+                fi
+                echo "rag-models-init: the volume no longer matches its stamp; re-provisioning..." >&2
+              fi
+
+              if [ "$HF_HUB_OFFLINE" = "1" ]; then
+                echo "rag-models-init: offline; verifying the pre-seeded models volume..."
+              else
+                echo "rag-models-init: reconciling the models volume for ${IMAGE_TAG:-this image}..."
+              fi
+              if /app/.venv/bin/python scripts/download_models.py; then
+                # Stamp only after success, so an interrupted provision is retried rather than
+                # skipped. Best-effort: a read-only or full volume must not fail a good provision,
+                # it only costs the next restart a re-verification.
+                [ -n "${IMAGE_TAG:-}" ] && echo "$IMAGE_TAG" > "$STAMP" 2>/dev/null || true
+                echo "rag-models-init: models ready"
+                exit 0
+              fi
+              # Only reachable when a model this image needs is neither on the volume nor
+              # downloadable. Fail here rather than letting the app crash later on a missing load.
+              echo "rag-models-init: the models this image needs are not available." >&2
+              echo "  Volume: $HF_HOME and $DOCLING_ARTIFACTS_PATH" >&2
+              if [ "$HF_HUB_OFFLINE" = "1" ]; then
+                echo "  models.hubOffline=1, so nothing could be downloaded. Pre-seed the" >&2
+                echo "  arcanna-rag-models PVC by extracting arcanna-rag-models.tgz into it, then redeploy." >&2
+                echo "  If this started after an arcanna-rag upgrade, the new image needs a model the" >&2
+                echo "  pre-seeded set does not have - rebuild the archive from the new image." >&2
+              else
+                echo "  Check egress to huggingface.co from this namespace. Alternatively pre-seed the" >&2
+                echo "  PVC from arcanna-rag-models.tgz and set models.hubOffline=1." >&2
+              fi
+              exit 1
+          volumeMounts:
+            - name: arcanna-rag-config
+              mountPath: /app/config/arcanna_rag.config
+              subPath: arcanna_rag.config
+            - name: rag-models-volume
+              mountPath: /app/models
       containers:
         - name: arcanna-rag
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -55,8 +119,16 @@ spec:
               value: {{ .Values.port | quote }}
             - name: DEPLOYMENT_TYPE
               value: "k8s-deployment"
+            - name: POD_UID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.uid
             - name: IMAGE_TAG
               value: {{ .Values.image.tag | quote }}
+            - name: HF_HUB_OFFLINE
+              value: "1"
+            - name: TRANSFORMERS_OFFLINE
+              value: "1"
             # ES credentials
             - name: DATA_WAREHOUSE_USER
               value: "elastic"
@@ -72,12 +144,12 @@ spec:
             - name: DATA_WAREHOUSE_SCHEMA
               value: {{ .Values.elasticsearch.schema | quote }}
             # App secrets
-            - name: SEAL_TOKEN
+            - name: SEAL_TOKEN                 # seal.token
               valueFrom:
                 secretKeyRef:
                   name: arcanna-app-credentials
                   key: seal-token
-            - name: ARCANNA_RAG_API_KEY
+            - name: ARCANNA_RAG_API_KEY        # arcanna_rag.api_key
               valueFrom:
                 secretKeyRef:
                   name: arcanna-app-credentials
@@ -109,6 +181,8 @@ spec:
               mountPath: /app/log
             - name: rag-storage-volume
               mountPath: /app/data/storage
+            - name: rag-models-volume
+              mountPath: /app/models
         {{- if .Values.filebeat.enabled }}
         - name: log-shipper
           image: {{ .Values.filebeat.image }}
@@ -134,6 +208,9 @@ spec:
         - name: rag-storage-volume
           persistentVolumeClaim:
             claimName: arcanna-rag-storage
+        - name: rag-models-volume
+          persistentVolumeClaim:
+            claimName: arcanna-rag-models
         {{- if .Values.filebeat.enabled }}
         - name: filebeat-shipper-config
           configMap:

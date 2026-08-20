@@ -1,7 +1,7 @@
 image:
-  repository: gcr.io/siscale-aiops/arcanna-rag
+  repository: gcr.io/siscale-aiops/arcanna-rag-cpu
   tag: latest
-  pullPolicy: Always
+  pullPolicy: IfNotPresent
 
 imagePullSecrets:
   - name: gcr-pull-secret
@@ -24,6 +24,15 @@ storagePvc:
 logPvc:
   size: 4Gi
   storageClassName: ""
+
+# ── Model cache ─────────────────────────────────────────────────────
+# hubOffline "1" makes the init verify-only: nothing is downloaded, so the PVC has to be pre-seeded by hand.
+# That is for strict air-gap mode. The normal mode is "0".
+models:
+  hubOffline: "0"
+  pvc:
+    size: 10Gi
+    storageClassName: ""
 
 # ── Filebeat sidecar ────────────────────────────────────────────────
 filebeat:
@@ -76,6 +85,7 @@ config:
       root: "data/storage"
       maxFileSizeBytes: 419430400
       maxTotalUploadBytes: 2147483648
+      maxTextCharsPerDocument: 500000
     orchestrator:
       stuckRecoveryIntervalS: 600
       conversion:
