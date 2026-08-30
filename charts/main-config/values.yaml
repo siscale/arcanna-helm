@@ -125,6 +125,9 @@ serviceConfigs:
       max_cron_instance: 1
     docker:
       socket: "unix:///var/run/docker.sock"
+    kubernetes:
+      namespace: ""
+      metrics_enabled: true
 
   monitoring_shipper: |-
     host: 0.0.0.0

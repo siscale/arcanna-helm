@@ -32,6 +32,12 @@ shipper:
       memory: "8092Mi"
       ephemeral-storage: "2Gi"
 
+# ── RBAC ─────────────────────────────────────────────────────────────
+rbac:
+  create: true
+  serviceAccountName: arcanna-monitoring-api
+  metrics: true      # allow reading metrics.k8s.io (needs metrics-server installed)
+
 # ── Log volume ───────────────────────────────────────────────────────
 logVolume:
   size: 20Gi
