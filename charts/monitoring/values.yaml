@@ -36,7 +36,8 @@ shipper:
 rbac:
   create: true
   serviceAccountName: arcanna-monitoring-api
-  metrics: true      # allow reading metrics.k8s.io (needs metrics-server installed)
+  metrics: true                # allow reading metrics.k8s.io (needs metrics-server installed)
+  allowWorkloadPatch: true
 
 # ── Log volume ───────────────────────────────────────────────────────
 logVolume:
