@@ -1,0 +1,84 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "arcanna-pipeline-models.name" . }}
+  labels:
+    {{- include "arcanna-pipeline-models.labels" . | nindent 4 }}
+  {{- with .Values.jobAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  backoffLimit: {{ .Values.job.backoffLimit }}
+  activeDeadlineSeconds: {{ int .Values.job.activeDeadlineSeconds }}
+  ttlSecondsAfterFinished: {{ int .Values.job.ttlSecondsAfterFinished }}
+  template:
+    metadata:
+      labels:
+        {{- include "arcanna-pipeline-models.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      containers:
+        - name: seed-models
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: INSTALLER_BASE_URL
+              value: {{ .Values.installerServer.baseUrl | quote }}
+            - name: MODELS_VERSION
+              value: {{ .Values.installerServer.version | quote }}
+            - name: MODEL_DIR
+              value: {{ .Values.modelDir | quote }}
+            - name: DOWNLOAD_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.installerServer.credentialsSecret }}
+                  key: user
+            - name: DOWNLOAD_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.installerServer.credentialsSecret }}
+                  key: password
+          command:
+            - sh
+            - -c
+            - |
+              set -eu
+              URL="${INSTALLER_BASE_URL}/models/arcanna-pipeline-models-${MODELS_VERSION}.tgz"
+              AUTH="Authorization: Basic $(printf '%s' "${DOWNLOAD_USER}:${DOWNLOAD_PASS}" | base64 | tr -d '\n')"
+              if ! WANT=$(wget -q -T 10 -O - --header "$AUTH" "${URL}.sha256"); then
+                if [ -f /models/.stamp ] && [ -f "/models/${MODEL_DIR}/model.safetensors" ]; then
+                  echo "seed: WARNING: could not check version ${MODELS_VERSION} on the installer server; keeping the existing models" >&2
+                  exit 0
+                fi
+                echo "seed: installer server unreachable and the volume is empty" >&2; exit 1
+              fi
+              if [ "$(cat /models/.stamp 2>/dev/null)" = "$WANT" ] && [ -f "/models/${MODEL_DIR}/model.safetensors" ]; then
+                echo "seed: already at ${MODELS_VERSION} (${WANT}); nothing to do"; exit 0
+              fi
+              echo "seed: fetching ${URL}"
+              rm -rf /models/.new /models/.old
+              mkdir /models/.new
+              wget -q -T 10 -O /models/.new/archive.tgz --header "$AUTH" "$URL"
+              echo "${WANT}  /models/.new/archive.tgz" | sha256sum -c
+              tar -xzf /models/.new/archive.tgz -C /models/.new
+              rm -f /models/.new/archive.tgz
+              [ -f "/models/.new/${MODEL_DIR}/model.safetensors" ] || {
+                  echo "seed: ${MODEL_DIR} missing from the archive" >&2; exit 1; }
+              mv "/models/${MODEL_DIR}" /models/.old 2>/dev/null || true
+              mv "/models/.new/${MODEL_DIR}" /models/
+              rm -rf /models/.new /models/.old || true
+              printf '%s' "$WANT" > /models/.stamp
+              echo "seed: done"
+          volumeMounts:
+            - name: models
+              mountPath: /models
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: {{ .Values.pvc.name }}
