@@ -526,6 +526,14 @@ deploy-worker:
 deploy-feedbacker:
 	$(call helm_modular,feedbacker,$(MODULAR_TAG))
 
+# Aggregate — same set deploy-all runs in phase 5.
+deploy-workers:
+	$(MAKE) deploy-worker          ENV=$(ENV) NAMESPACE=$(NAMESPACE) MODULAR_TAG=$(MODULAR_TAG)
+	$(MAKE) deploy-buckets-updater ENV=$(ENV) NAMESPACE=$(NAMESPACE) MODULAR_TAG=$(MODULAR_TAG)
+	$(MAKE) deploy-retrainer       ENV=$(ENV) NAMESPACE=$(NAMESPACE) MODULAR_TAG=$(MODULAR_TAG)
+	$(MAKE) deploy-clustering      ENV=$(ENV) NAMESPACE=$(NAMESPACE) MODULAR_TAG=$(MODULAR_TAG)
+	$(MAKE) deploy-cacher          ENV=$(ENV) NAMESPACE=$(NAMESPACE) MODULAR_TAG=$(MODULAR_TAG)
+
 
 deploy-monitoring:
 	@echo "──── deploying monitoring [$(ENV)] ────"
@@ -947,7 +955,7 @@ help:
 	@echo "  deploy-core-framework Deploy core-framework"
 	@echo "  deploy-mcp-client     Deploy MCP client"
 	@echo "  deploy-arcanna-rag    Deploy RAG pipeline"
-	@echo "  deploy-workers        Deploy workers (HPA)"
+	@echo "  deploy-workers        Deploy worker + buckets-updater + retrainer + clustering + cacher"
 	@echo "  deploy-platform       Deploy React frontend"
 	@echo "  deploy-migration-start Run ES migration (--stop-jobs)"
 	@echo "  deploy-migration-end   Run ES migration (--start-jobs)"
