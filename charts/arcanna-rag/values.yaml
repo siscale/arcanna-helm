@@ -33,6 +33,12 @@ models:
   pvc:
     size: 10Gi
     storageClassName: ""
+  # set version (e.g. "v1") to take arcanna-rag-models-<version>.tgz from the
+  # installer server before reconciling from HF; empty = HF only. Ignored when hubOffline is "1".
+  installerServer:
+    baseUrl: https://installer.arcanna.ai
+    version: ""
+    credentialsSecret: installer-server-credentials
 
 # ── Filebeat sidecar ────────────────────────────────────────────────
 filebeat:

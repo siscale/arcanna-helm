@@ -85,3 +85,9 @@ elasticsearch:
   schema: "https"
 # ── Extra env vars (per-service, e.g. LLM_DEPLOYMENT_TYPE) ──────────
 extraEnv: []
+
+# ── Pipeline models volume (read-only) ──────────────────
+pipelineModels:
+  enabled: false
+  claimName: arcanna-pipeline-models
+  mountPath: /opt/arcanna/data/BAAI_bge-base-en-v1.5

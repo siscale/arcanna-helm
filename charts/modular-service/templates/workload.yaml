@@ -132,6 +132,12 @@ spec:
             - name: data-volume
               mountPath: {{ .Values.dataVolume.mountPath }}
             {{- end }}
+            {{- if .Values.pipelineModels.enabled }}
+            - name: pipeline-models
+              mountPath: {{ .Values.pipelineModels.mountPath }}
+              subPath: {{ base .Values.pipelineModels.mountPath }}
+              readOnly: true
+            {{- end }}
             {{- if .Values.extraConfig.enabled }}
             - name: extra-config
               mountPath: {{ .Values.extraConfig.mountPath }}
@@ -165,6 +171,11 @@ spec:
         - name: data-volume
           persistentVolumeClaim:
             claimName: {{ .Values.serviceName }}-data-pvc
+        {{- end }}
+        {{- if .Values.pipelineModels.enabled }}
+        - name: pipeline-models
+          persistentVolumeClaim:
+            claimName: {{ .Values.pipelineModels.claimName }}
         {{- end }}
         {{- if .Values.extraConfig.enabled }}
         - name: extra-config

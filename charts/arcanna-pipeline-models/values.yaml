@@ -1,0 +1,29 @@
+# ── Archive source (installer server) ─────────────────
+installerServer:
+  baseUrl: https://installer.arcanna.ai
+  version: v1
+  # Secret with keys `user` / `pass` (make create-secret-installer)
+  credentialsSecret: installer-server-credentials
+
+# directory inside the archive, mounted at DATA_PATH/<modelDir>
+modelDir: BAAI_bge-base-en-v1.5
+
+# air-gap: override with an image from the internal registry
+image:
+  repository: alpine
+  tag: "3.22"
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+jobAnnotations: {}
+
+pvc:
+  name: arcanna-pipeline-models
+  size: 2.5Gi
+  # set per env (any RWX-capable class)
+  storageClassName: ""
+
+job:
+  backoffLimit: 3
+  activeDeadlineSeconds: 1200
+  ttlSecondsAfterFinished: 1209600

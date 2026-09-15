@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Values.pvc.name }}
+  # shared with the modular services; survives helm uninstall
+  annotations:
+    "helm.sh/resource-policy": keep
+  labels:
+    {{- include "arcanna-pipeline-models.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: {{ .Values.pvc.size }}
+  {{- if .Values.pvc.storageClassName }}
+  storageClassName: {{ .Values.pvc.storageClassName }}
+  {{- end }}

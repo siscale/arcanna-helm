@@ -43,6 +43,8 @@ POSTGRES_USER     ?=
 POSTGRES_PASSWORD ?=
 POSTGRES_DB       ?=
 REDIS_PASSWORD    ?=
+DOWNLOAD_USER     ?=
+DOWNLOAD_PASS     ?=
 GCR_JSON_KEY_FILE ?=
 
 # App secret values — auto-generated if empty
@@ -197,7 +199,7 @@ diff-env:
 	rm -rf $$TMP
 
 # ── Secrets ─────────────────────────────────────────────────────────
-.PHONY: create-secrets create-secret-postgres create-secret-redis create-secret-gcr check-secrets
+.PHONY: create-secrets create-secret-postgres create-secret-redis create-secret-gcr create-secret-installer check-secrets
 
 create-secret-postgres: init-namespace
 	@if kubectl get secret postgres-credentials -n $(NAMESPACE) >/dev/null 2>&1; then \
@@ -283,13 +285,25 @@ create-secret-app: init-namespace
 		echo "   Keys: seal-token, api-token, rag-api-key, monitoring-api-key, monitoring-secret"; \
 	fi
 
+create-secret-installer: init-namespace
+	@if kubectl get secret installer-server-credentials -n $(NAMESPACE) >/dev/null 2>&1; then \
+		echo "⏭  installer-server-credentials already exists in $(NAMESPACE)"; \
+	else \
+		test -n "$(DOWNLOAD_USER)" && test -n "$(DOWNLOAD_PASS)" || { echo "Set DOWNLOAD_USER / DOWNLOAD_PASS"; exit 1; }; \
+		kubectl create secret generic installer-server-credentials \
+			-n $(NAMESPACE) \
+			--from-literal=user="$(DOWNLOAD_USER)" \
+			--from-literal=password="$(DOWNLOAD_PASS)"; \
+		echo "✅ installer-server-credentials created"; \
+	fi
+
 create-secrets: create-secret-postgres create-secret-redis create-secret-gcr create-secret-app
 	@echo ""
 	@echo "══════ All infra secrets ready [$(NAMESPACE)] ══════"
 
 check-secrets:
 	@echo "Checking secrets in $(NAMESPACE):"
-	@for s in postgres-credentials redis-credentials gcr-pull-secret arcanna-app-credentials; do \
+	@for s in postgres-credentials redis-credentials gcr-pull-secret arcanna-app-credentials installer-server-credentials; do \
 		if kubectl get secret $$s -n $(NAMESPACE) >/dev/null 2>&1; then \
 			echo "  ✅ $$s"; \
 		else \
@@ -845,7 +859,7 @@ show-resources:
 	@kubectl get pvc -n $(NAMESPACE) 2>/dev/null || echo "  (none)"
 	@echo ""
 	@echo "── Secrets (installer-managed) ──"
-	@for s in postgres-credentials redis-credentials gcr-pull-secret arcanna-app-credentials; do \
+	@for s in postgres-credentials redis-credentials gcr-pull-secret arcanna-app-credentials installer-server-credentials; do \
 		kubectl get secret $$s -n $(NAMESPACE) --no-headers 2>/dev/null || echo "  $$s  (not present)"; \
 	done
 
@@ -914,6 +928,15 @@ destroy-all:
 destroy-infra: destroy-app
 	@echo "(destroy-infra is now an alias for destroy-app)"
 
+# ── Pipeline models ─────────────────────────────────────────────────
+.PHONY: deploy-pipeline-models
+
+deploy-pipeline-models: HELM_TIMEOUT = $(HELM_SPECIAL_TIMEOUT)
+deploy-pipeline-models: override HELM_EXTRA_ARGS += --wait-for-jobs
+deploy-pipeline-models: init-namespace create-secret-installer
+	$(call helm_upgrade,arcanna-pipeline-models)
+	@echo "NOTE: after a version bump restart worker, clustering, buckets-updater and retrainer to load the new model"
+
 # ── Help ────────────────────────────────────────────────────────────
 .PHONY: help
 help:
@@ -929,6 +952,7 @@ help:
 	@echo "  create-secret-postgres"
 	@echo "  create-secret-redis"
 	@echo "  create-secret-gcr"
+	@echo "  create-secret-installer"
 	@echo "  check-secrets         Verify secrets exist"
 	@echo ""
 	@echo "Infrastructure:"
@@ -985,3 +1009,6 @@ help:
 	@echo "  # Reset admin password (auto-generate new one)"
 	@echo "  make deploy-admin-user ENV=baremetal-stage NAMESPACE=arcanna-stage \\"
 	@echo "    REST_API_TAG=<sha> FORCE_USER_CREATION=true"
+	@echo ""
+	@echo "Pipeline models:"
+	@echo "  deploy-pipeline-models    Seed the shared models volume from the installer server"

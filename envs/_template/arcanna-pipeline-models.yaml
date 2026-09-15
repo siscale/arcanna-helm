@@ -1,0 +1,3 @@
+# Only deployed with: make deploy-pipeline-models ENV=@ENV_NAME@
+pvc:
+  storageClassName: @STORAGE_CLASS@
