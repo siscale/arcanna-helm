@@ -52,13 +52,15 @@ spec:
               URL="${INSTALLER_BASE_URL}/models/arcanna-pipeline-models-${MODELS_VERSION}.tgz"
               AUTH="Authorization: Basic $(printf '%s' "${DOWNLOAD_USER}:${DOWNLOAD_PASS}" | base64 | tr -d '\n')"
               if ! WANT=$(wget -q -T 10 -O - --header "$AUTH" "${URL}.sha256"); then
-                if [ -f /models/.stamp ] && [ -f "/models/${MODEL_DIR}/model.safetensors" ]; then
+                if [ -f /models/.seeded-from ] && [ -f "/models/${MODEL_DIR}/model.safetensors" ]; then
                   echo "seed: WARNING: could not check version ${MODELS_VERSION} on the installer server; keeping the existing models" >&2
                   exit 0
                 fi
                 echo "seed: installer server unreachable and the volume is empty" >&2; exit 1
               fi
-              if [ "$(cat /models/.stamp 2>/dev/null)" = "$WANT" ] && [ -f "/models/${MODEL_DIR}/model.safetensors" ]; then
+              # .seeded-from = "<sha256>  <url>" of the archive the volume was last seeded from,
+              # the same stamp arcanna-rag's download_models.py keeps on its models volume
+              if [ "$(cut -d' ' -f1 /models/.seeded-from 2>/dev/null)" = "$WANT" ] && [ -f "/models/${MODEL_DIR}/model.safetensors" ]; then
                 echo "seed: already at ${MODELS_VERSION} (${WANT}); nothing to do"; exit 0
               fi
               echo "seed: fetching ${URL}"
@@ -70,10 +72,12 @@ spec:
               rm -f /models/.new/archive.tgz
               [ -f "/models/.new/${MODEL_DIR}/model.safetensors" ] || {
                   echo "seed: ${MODEL_DIR} missing from the archive" >&2; exit 1; }
+              # .old stays until the next seed: running pods still read it through their subPath
+              # mount until they are restarted onto the new tree
               mv "/models/${MODEL_DIR}" /models/.old 2>/dev/null || true
               mv "/models/.new/${MODEL_DIR}" /models/
-              rm -rf /models/.new /models/.old || true
-              printf '%s' "$WANT" > /models/.stamp
+              rm -rf /models/.new
+              printf '%s  %s\n' "$WANT" "$URL" > /models/.seeded-from
               echo "seed: done"
           volumeMounts:
             - name: models

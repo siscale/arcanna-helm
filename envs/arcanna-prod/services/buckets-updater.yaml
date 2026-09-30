@@ -22,3 +22,6 @@ probes:
     initialDelaySeconds: 45
     periodSeconds: 20
     timeoutSeconds: 5
+
+pipelineModels:
+  enabled: true

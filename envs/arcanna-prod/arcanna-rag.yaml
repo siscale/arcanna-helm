@@ -9,6 +9,8 @@ logPvc:
 models:
   pvc:
     storageClassName: sc-prod
+  installerServer:
+    version: v1
 
 # FOR GPU
 #gpu:

@@ -524,7 +524,12 @@ deploy-buckets-updater:
 deploy-retrainer:
 	$(call helm_modular,retrainer,$(MODULAR_TAG))
 
+# The worker is the first of the services that mount the arcanna-pipeline-models PVC (worker,
+# buckets-updater, retrainer, clustering - in deploy-all and in the repos' deploy workflows), and
+# they wait in Init until it holds the model. So seed it first; a no-op when it already holds
+# this version. Run as a sub-make so this target's HELM_EXTRA_ARGS never reach that release.
 deploy-worker:
+	$(MAKE) deploy-pipeline-models ENV=$(ENV) NAMESPACE=$(NAMESPACE) HELM_EXTRA_ARGS=
 	@echo "──── deploying worker [$(ENV)] (modular-service) ────"
 	$(call helm_unlock,worker)
 	helm upgrade --install worker $(CHARTS_DIR)/modular-service \

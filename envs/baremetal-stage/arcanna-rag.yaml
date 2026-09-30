@@ -11,6 +11,8 @@ logPvc:
 models:
   pvc:
     storageClassName: sc-stage
+  installerServer:
+    version: v1
 
 # FOR GPU
 #gpu:

@@ -29,3 +29,6 @@ probes:
 logVolume:
   size: 256Mi
   storageClassName: nfs
+
+pipelineModels:
+  enabled: true

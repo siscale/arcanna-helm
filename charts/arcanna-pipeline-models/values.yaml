@@ -1,8 +1,9 @@
 # ── Archive source (installer server) ─────────────────
 installerServer:
   baseUrl: https://installer.arcanna.ai
-  version: v1
-  # Secret with keys `user` / `pass` (make create-secret-installer)
+  # set per env in envs/<env>/arcanna-pipeline-models.yaml; required
+  version: ""
+  # Secret with keys `user` / `password` (make create-secret-installer)
   credentialsSecret: installer-server-credentials
 
 # directory inside the archive, mounted at DATA_PATH/<modelDir>
@@ -19,7 +20,7 @@ jobAnnotations: {}
 
 pvc:
   name: arcanna-pipeline-models
-  size: 2.5Gi
+  size: 4Gi
   # set per env (any RWX-capable class)
   storageClassName: ""
 

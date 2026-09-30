@@ -95,6 +95,41 @@ spec:
               cpu: "500m"
               memory: "256Mi"
         {{- end }}
+        {{- /*
+          The pipeline models volume is read-only here, and the app falls back to downloading the
+          model from HF and saving it into this very path - which fails on the read-only mount.
+          So hold the pod until the arcanna-pipeline-models Job has seeded the PVC. This checks
+          once and fails rather than looping: a subPath mount is resolved when the container
+          starts, so only a restarted container sees a directory the Job swapped in since.
+        */ -}}
+        {{- if .Values.pipelineModels.enabled }}
+        - name: pipeline-models-check
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - sh
+            - -c
+            - |
+              if [ -f "{{ .Values.pipelineModels.mountPath }}/model.safetensors" ]; then
+                echo "[pipeline-models-check] model present"
+                exit 0
+              fi
+              echo "[pipeline-models-check] {{ .Values.pipelineModels.mountPath }} is not seeded yet;" >&2
+              echo "  run 'make deploy-pipeline-models' (PVC {{ .Values.pipelineModels.claimName }}). Retrying..." >&2
+              exit 1
+          volumeMounts:
+            - name: pipeline-models
+              mountPath: {{ .Values.pipelineModels.mountPath }}
+              subPath: {{ base .Values.pipelineModels.mountPath }}
+              readOnly: true
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "16Mi"
+            limits:
+              cpu: "100m"
+              memory: "64Mi"
+        {{- end }}
       containers:
         - name: {{ .Values.serviceName }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
