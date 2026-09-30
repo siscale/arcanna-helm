@@ -5,6 +5,14 @@ port: 9888
 image:
   repository: gcr.io/siscale-aiops/agents-component
 
+resources:
+  requests:
+    cpu: "100m"
+    memory: "512Mi"
+  limits:
+    cpu: "2000m"
+    memory: "4Gi"
+
 extraConfig:
   enabled: true
   name: agents-exposer-config
