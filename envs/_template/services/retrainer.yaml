@@ -12,3 +12,6 @@ resources:
   limits:
     cpu: "2000m"
     memory: "4096Mi"
+
+pipelineModels:
+  enabled: true

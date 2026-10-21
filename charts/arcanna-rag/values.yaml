@@ -31,8 +31,14 @@ logPvc:
 models:
   hubOffline: "0"
   pvc:
-    size: 10Gi
+    size: 15Gi
     storageClassName: ""
+  # set version (e.g. "v1") to fill in what the PVC lacks from arcanna-rag-models-<version>.tgz on
+  # the installer server before reconciling from HF; empty = HF only. Ignored when hubOffline is "1".
+  installerServer:
+    baseUrl: https://installer.arcanna.ai
+    version: ""
+    credentialsSecret: installer-server-credentials
 
 # ── Filebeat sidecar ────────────────────────────────────────────────
 filebeat:

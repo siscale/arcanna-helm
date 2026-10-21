@@ -58,6 +58,24 @@ spec:
               value: /app/models/docling
             - name: IMAGE_TAG
               value: {{ .Values.image.tag | quote }}
+            {{- if .Values.models.installerServer.version }}
+            - name: INSTALLER_BASE_URL
+              value: {{ .Values.models.installerServer.baseUrl | quote }}
+            - name: MODELS_VERSION
+              value: {{ .Values.models.installerServer.version | quote }}
+            - name: DOWNLOAD_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.models.installerServer.credentialsSecret }}
+                  key: user
+                  optional: true
+            - name: DOWNLOAD_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.models.installerServer.credentialsSecret }}
+                  key: password
+                  optional: true
+            {{- end }}
           command:
             - /bin/sh
             - -c
