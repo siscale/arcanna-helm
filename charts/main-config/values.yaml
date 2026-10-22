@@ -69,6 +69,12 @@ serviceConfigs:
       enabled: true
       interval: 900
       time_limit_m: 20
+    assistant_cleanup:
+      enabled: true
+      interval: 3600
+    workflow_validation:
+      enabled: true
+      interval: 900
 
   exposer: |-
     port: 9666

@@ -1,0 +1,4 @@
+pvc:
+  storageClassName: nfs
+installerServer:
+  version: v1
