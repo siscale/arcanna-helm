@@ -92,7 +92,14 @@ serviceConfigs:
     host: 0.0.0.0
     use_reloader: true
     num_workers: 5
-    process_pool_workers: 1
+    workflow_session_db:
+        pool_size: 5
+        max_overflow: 10
+        pool_timeout_s: 30
+    workflow_queue:
+        consumers: 2
+        max_concurrency: 10
+        pop_timeout_s: 5
     agents_logger:
         level: debug
     mcp_client:
