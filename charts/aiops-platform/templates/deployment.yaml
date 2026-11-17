@@ -11,6 +11,8 @@ spec:
       {{- include "aiops-platform.selectorLabels" . | nindent 6 }}
   template:
     metadata:
+      annotations:
+        checksum/proxy-config: {{ include (print $.Template.BasePath "/configmap-proxy.yaml") . | sha256sum }}
       labels:
         {{- include "aiops-platform.selectorLabels" . | nindent 8 }}
     spec:
@@ -42,6 +44,10 @@ spec:
                   key: monitoring-api-key
             - name: VITE_BRANDING_FOLDER
               value: {{ .Values.brandingFolder | quote }}
+          volumeMounts:
+            - name: proxy-config
+              mountPath: /etc/nginx/extra-conf.d
+              readOnly: true
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           readinessProbe:
@@ -56,3 +62,7 @@ spec:
               port: {{ .Values.port }}
             initialDelaySeconds: 5
             periodSeconds: 5
+      volumes:
+        - name: proxy-config
+          configMap:
+            name: aiops-platform-proxy
