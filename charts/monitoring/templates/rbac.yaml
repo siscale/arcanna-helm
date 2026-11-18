@@ -62,4 +62,34 @@ subjects:
   - kind: ServiceAccount
     name: {{ .Values.rbac.serviceAccountName }}
     namespace: {{ .Release.Namespace }}
+{{- if .Values.rbac.nodes }}
+---
+
+# ClusterRole/ClusterRoleBinding la nivel de cluster, suffix e pus pt a l separa in functie de namespace
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ .Values.rbac.serviceAccountName }}-nodes-{{ .Release.Namespace }}
+  labels:
+    {{- include "monitoring.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ .Values.rbac.serviceAccountName }}-nodes-{{ .Release.Namespace }}
+  labels:
+    {{- include "monitoring.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ .Values.rbac.serviceAccountName }}-nodes-{{ .Release.Namespace }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.rbac.serviceAccountName }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}
 {{- end }}

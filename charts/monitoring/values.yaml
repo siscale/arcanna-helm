@@ -37,6 +37,7 @@ rbac:
   create: true
   serviceAccountName: arcanna-monitoring-api
   metrics: true                # allow reading metrics.k8s.io (needs metrics-server installed)
+  nodes: true                 # allow reading nodes metrics
   allowWorkloadPatch: true
 
 # ── Log volume ───────────────────────────────────────────────────────
