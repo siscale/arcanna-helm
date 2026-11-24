@@ -19,6 +19,7 @@ resources:
 # ── URLs (MUST set per environment) ──────────────────────────────────
 backendUrl: ""       # e.g. https://stage-pub-rest.arcanna.ai
 monitoringUrl: ""    # e.g. https://stage-pub-monitoring.arcanna.ai
+exposerUrl: ""       # e.g. https://stage-exposer.arcanna.ai; empty -> UI falls back to <Base URL>/docs/exposer
 
 # ── Branding ─────────────────────────────────────────────────────────
 brandingFolder: "siscale"
@@ -32,10 +33,3 @@ service:
 neg:
   enabled: false
   name: ""
-
-# ── Reverse proxy to in-cluster APIs ─────────────────────────────────
-proxy:
-  exposer:
-    url: "http://exposer:9666"
-  agentsExposer:
-    url: "http://agents-exposer:9888"
