@@ -11,6 +11,8 @@ image:
 imagePullSecrets:
   - name: gcr-pull-secret
 
+automountServiceAccountToken: null   # true/false to override the k8s default
+
 # ── Workload type ────────────────────────────────────────────────────
 workloadType: Deployment    # Deployment | StatefulSet
 replicas: 1
