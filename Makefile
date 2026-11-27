@@ -27,6 +27,7 @@ ES_CLUSTER_NAME    ?= aiops-$(ENV)
 STORAGE_CLASS      ?= sc-default
 PLATFORM_NODE_PORT ?= 31400
 EXPOSER_NODE_PORT  ?= 31403
+AGENTS_EXPOSER_NODE_PORT ?= 31404
 
 # When URLs are empty, services must expose NodePorts for the
 # auto-resolved URLs (http://<node-ip>:<port>) to actually work.
@@ -155,6 +156,7 @@ init-env:
 		echo "  STORAGE_CLASS      = $(STORAGE_CLASS)"; \
 		echo "  PLATFORM_NODE_PORT = $(PLATFORM_NODE_PORT)"; \
 		echo "  EXPOSER_NODE_PORT  = $(EXPOSER_NODE_PORT)"; \
+		echo "  AGENTS_EXPOSER_NODE_PORT = $(AGENTS_EXPOSER_NODE_PORT)"; \
 		mkdir -p $(ENVS_DIR)/services; \
 		for f in envs/_template/*.yaml envs/_template/services/*.yaml; do \
 			rel=$${f#envs/_template/}; \
@@ -165,6 +167,7 @@ init-env:
 			    -e "s|@STORAGE_CLASS@|$(STORAGE_CLASS)|g" \
 			    -e "s|@PLATFORM_NODE_PORT@|$(PLATFORM_NODE_PORT)|g" \
 			    -e "s|@EXPOSER_NODE_PORT@|$(EXPOSER_NODE_PORT)|g" \
+			    -e "s|@AGENTS_EXPOSER_NODE_PORT@|$(AGENTS_EXPOSER_NODE_PORT)|g" \
 			    "$$f" > "$$dest"; \
 		done; \
 		echo "✅ envs/$(ENV) created ($$(find $(ENVS_DIR) -type f | wc -l) files)"; \
@@ -193,6 +196,7 @@ diff-env:
 		    -e "s|@STORAGE_CLASS@|$(STORAGE_CLASS)|g" \
 		    -e "s|@PLATFORM_NODE_PORT@|$(PLATFORM_NODE_PORT)|g" \
 		    -e "s|@EXPOSER_NODE_PORT@|$(EXPOSER_NODE_PORT)|g" \
+		    -e "s|@AGENTS_EXPOSER_NODE_PORT@|$(AGENTS_EXPOSER_NODE_PORT)|g" \
 		    "$$f" > "$$TMP/$$rel"; \
 	done; \
 	diff -ruN $$TMP $(ENVS_DIR) || true; \
@@ -622,6 +626,19 @@ deploy-platform:
 		echo "  ℹ  MONITORING_URL = $$MURL  (from .env)"; \
 		echo "  ℹ  PLATFORM_URL   = $$PURL  (from .env)"; \
 	fi; \
+	EURL="$${EXPOSER_URL:-$(EXPOSER_URL)}"; \
+	if [ -z "$$EURL" ]; then \
+		EXPOSER_PORT=$$(kubectl get svc exposer -n $(NAMESPACE) -o jsonpath='{.spec.ports[0].nodePort}' 2>/dev/null); \
+		NODE_IP=$$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}' 2>/dev/null); \
+		if [ -n "$$EXPOSER_PORT" ] && [ -n "$$NODE_IP" ]; then \
+			EURL="http://$$NODE_IP:$$EXPOSER_PORT"; \
+			echo "  ℹ  EXPOSER_URL    = $$EURL  (auto: node IP + exposer NodePort)"; \
+		else \
+			echo "  ℹ  EXPOSER_URL    = (empty, the UI falls back to <Base URL>/docs/exposer)"; \
+		fi; \
+	else \
+		echo "  ℹ  EXPOSER_URL    = $$EURL  (from .env)"; \
+	fi; \
 	helm upgrade --install aiops-platform $(CHARTS_DIR)/aiops-platform \
 		-n $(NAMESPACE) \
 		-f $(CHARTS_DIR)/aiops-platform/values.yaml \
@@ -630,6 +647,7 @@ deploy-platform:
 		--set image.tag=$(PLATFORM_TAG) \
 		--set backendUrl="$$BURL" \
 		--set monitoringUrl="$$MURL" \
+		--set exposerUrl="$$EURL" \
 		--timeout $(HELM_TIMEOUT) \
 		--wait \
 		$(HELM_EXTRA_ARGS); \
