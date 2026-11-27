@@ -14,3 +14,14 @@ spec:
   storageClass:
     name: {{ .Values.kraft.storageClassName }}
   {{- end }}
+  {{- if or .Values.extraServerConfig .Values.log4j2 }}
+  configOverrides:
+    {{- with .Values.extraServerConfig }}
+    server:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+    {{- with .Values.log4j2 }}
+    log4j2:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+  {{- end }}

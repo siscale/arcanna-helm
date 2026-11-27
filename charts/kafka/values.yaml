@@ -25,3 +25,34 @@ kafka:
     messageMaxBytes: 50000000
     replicaFetchMaxBytes: 50000000
     logRetentionHours: 8
+
+# Applied to both Kafka and KRaftController CRs (spec.configOverrides.server)
+extraServerConfig:
+  - confluent.telemetry.enabled=false
+  - confluent.reporters.telemetry.auto.enable=false
+  - confluent.balancer.enable=false
+
+# Applied to both Kafka and KRaftController CRs (spec.configOverrides.log4j2)
+# Same as the CFK 3.2.2 generated default, with levels lowered to ERROR.
+log4j2:
+  Configuration:
+    status: ERROR
+    Properties:
+      Property:
+        - name: app
+          value: ${app}
+        - name: clusterId
+          value: ${clusterId}
+        - name: server
+          value: ${server}
+    Appenders:
+      Console:
+        name: stdout
+        target: SYSTEM_OUT
+        PatternLayout:
+          Pattern: "[%p] %d [%t] %c %M - app=${app}, clusterId=${clusterId}, server=${server} - %m%n"
+    Loggers:
+      Root:
+        level: ERROR
+        AppenderRef:
+          - ref: stdout

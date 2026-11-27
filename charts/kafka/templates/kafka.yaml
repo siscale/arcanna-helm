@@ -27,6 +27,13 @@ spec:
       - message.max.bytes={{ int .Values.kafka.config.messageMaxBytes }}
       - replica.fetch.max.bytes={{ int .Values.kafka.config.replicaFetchMaxBytes }}
       - log.retention.hours={{ .Values.kafka.config.logRetentionHours }}
+      {{- range .Values.extraServerConfig }}
+      - {{ . }}
+      {{- end }}
+    {{- with .Values.log4j2 }}
+    log4j2:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
   dependencies:
     kRaftController:
       clusterRef:
