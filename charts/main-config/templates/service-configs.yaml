@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: filebeat-shipper-config2
+  name: filebeat-shipper-config
   labels:
     {{- include "main-config.labels" . | nindent 4 }}
 data:
