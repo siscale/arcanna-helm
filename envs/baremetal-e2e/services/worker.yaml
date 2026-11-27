@@ -28,3 +28,6 @@ probes:
 
 logVolume:
   size: 256Mi
+
+pipelineModels:
+  enabled: true

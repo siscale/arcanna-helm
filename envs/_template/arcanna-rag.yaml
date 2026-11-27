@@ -9,3 +9,5 @@ logPvc:
 models:
   pvc:
     storageClassName: @STORAGE_CLASS@
+  installerServer:
+    version: v1

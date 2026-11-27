@@ -1,0 +1,5 @@
+# Deployed by make deploy-worker (so by deploy-all / upgrade-all too), or alone: make deploy-pipeline-models ENV=@ENV_NAME@
+pvc:
+  storageClassName: @STORAGE_CLASS@
+installerServer:
+  version: v1

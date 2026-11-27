@@ -30,6 +30,8 @@ spec:
               value: {{ .Values.backendUrl | quote }}
             - name: VITE_MONITORING_URL
               value: {{ .Values.monitoringUrl | quote }}
+            - name: VITE_EXPOSER_URL
+              value: {{ .Values.exposerUrl | quote }}
             - name: VITE_REST_API_TOKEN
               valueFrom:
                 secretKeyRef:

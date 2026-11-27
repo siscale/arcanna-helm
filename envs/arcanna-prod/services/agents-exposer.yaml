@@ -5,6 +5,11 @@ port: 9888
 image:
   repository: gcr.io/siscale-aiops/agents-component
 
+service:
+  nodePort:
+    enabled: true
+    port: 32067
+
 resources:
   requests:
     cpu: "100m"
